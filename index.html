@@ -1,0 +1,1315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Blood pressure log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+// Show page errors on screen instead of failing silently
+window.addEventListener('error', function(e){
+  if(!e || !e.lineno) return;              // ignore opaque errors from Google/CDN scripts
+  var b=document.getElementById('errBanner'); if(!b) return;
+  b.hidden=false;
+  b.textContent='The page hit an error, so some buttons may not work: "'+e.message+'" (line '+e.lineno+'). Reload the page; if it happens again, send this message.';
+});
+</script>
+<style>
+:root{
+  --bg:#F4F6F9; --surface:#FFFFFF; --ink:#16233A; --muted:#5A6678; --line:#DCE2EA; --soft:#EEF2F6;
+  --sys:#B8324B; --dia:#2B7A8B; --hr:#A0701A; --accent:#1F4E8C; --accent-ink:#FFFFFF; --ok:#2F7D4F;
+  --serif:"Newsreader", Georgia, "Times New Roman", serif;
+  --sans:"Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E1522; --surface:#162032; --ink:#E6ECF4; --muted:#9AA7B8; --line:#2A3649; --soft:#1C283B;
+    --sys:#F0798D; --dia:#5CC2D2; --hr:#E0B25A; --accent:#8DB4F0; --accent-ink:#0E1522; --ok:#6CC990;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E1522; --surface:#162032; --ink:#E6ECF4; --muted:#9AA7B8; --line:#2A3649; --soft:#1C283B;
+  --sys:#F0798D; --dia:#5CC2D2; --hr:#E0B25A; --accent:#8DB4F0; --accent-ink:#0E1522; --ok:#6CC990;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
+body.modal-open{overflow:hidden}
+.wrap{max-width:1120px;margin:0 auto;padding:20px 20px 60px}
+h1,h2,h3{font-family:var(--serif);font-weight:600;margin:0;letter-spacing:-.01em}
+h1{font-size:1.6rem}
+h2{font-size:1.3rem}
+h3{font-size:1.05rem}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:.85rem}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;justify-content:space-between;padding-bottom:18px;border-bottom:1px solid var(--line)}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+.btn{border:1px solid var(--line);background:var(--surface);padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--sys)}
+.btn.link{border:none;background:none;padding:4px 6px;color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Hero */
+.hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;padding:28px 0 24px;align-items:end}
+.reading{font-family:var(--serif);line-height:.9;display:flex;align-items:baseline;gap:.05em;flex-wrap:wrap}
+.reading .s{font-size:clamp(4rem,11vw,7.5rem);color:var(--sys)}
+.reading .slash{font-size:clamp(3rem,8vw,5.5rem);color:var(--muted);font-weight:400}
+.reading .d{font-size:clamp(3rem,8vw,5.5rem);color:var(--dia)}
+.reading .unit{font-family:var(--sans);font-size:.95rem;color:var(--muted);margin-left:.6em}
+.hero-meta{margin-top:10px;color:var(--muted)}
+.chip{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.82rem;font-weight:500;border:1px solid currentColor}
+.chip.high{color:var(--sys)} .chip.ok{color:var(--ok)}
+.avgs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.avgs div{background:var(--surface);padding:12px 14px}
+.avgs b{display:block;font-family:var(--serif);font-size:1.6rem;font-weight:600;line-height:1.2}
+.avgs span{font-size:.82rem;color:var(--muted)}
+
+/* Range */
+.rangebar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:18px 0 0}
+.rangebar[hidden]{display:none}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{border:none;background:none;padding:7px 12px;cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:none}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.custom{display:flex;gap:6px;align-items:center}
+.custom[hidden]{display:none}
+input[type=date],input[type=datetime-local],input[type=number],input[type=text],select,textarea{border:1px solid var(--line);background:var(--surface);border-radius:7px;padding:7px 9px;min-width:0}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px}
+.panel-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.85rem;color:var(--muted);align-items:center}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.chartbox{position:relative;width:100%;height:340px}
+.chartbox canvas{width:100%;height:100%;display:block}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font-size:.8rem;padding:6px 9px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-110%);display:none;z-index:2}
+
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:18px}
+.tod{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.tod div{border-left:3px solid var(--line);padding:2px 0 2px 12px}
+.tod b{display:block;font-family:var(--serif);font-size:1.7rem;font-weight:600;line-height:1.2}
+.note{margin-top:12px;font-size:.9rem;color:var(--muted)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{padding:7px 8px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-weight:600;color:var(--muted);font-size:.8rem}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.bp{font-variant-numeric:tabular-nums;font-weight:600}
+.bp .sd{font-weight:400;color:var(--muted);font-size:.8rem;margin-left:4px}
+.spark{width:100%;height:90px;display:block;margin:6px 0 10px}
+.empty{padding:50px 20px;text-align:center}
+.empty h2{margin-bottom:8px}
+.empty .actions{justify-content:center;margin-top:16px}
+.log{margin-top:18px}
+.flag{color:var(--sys);font-weight:600}
+
+/* Modal */
+.modal{position:fixed;inset:0;background:rgba(8,15,28,.5);display:grid;place-items:center;padding:16px;padding-top:calc(16px + env(safe-area-inset-top,0px));padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:50}
+.modal[hidden]{display:none}
+.sheet{background:var(--surface);border-radius:14px;width:100%;max-width:580px;max-height:100%;overflow:auto;padding:22px;border:1px solid var(--line)}
+.sheet h2{margin-bottom:14px}
+.form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:.85rem;color:var(--muted)}
+.form label>input,.form label>select,.form label>textarea{color:var(--ink);font-size:.95rem}
+.form .full{grid-column:1/-1}
+.check{flex-direction:row!important;align-items:center;gap:8px!important;color:var(--ink)!important;font-size:.95rem!important}
+.check input{width:18px;height:18px}
+.checks{display:flex;flex-wrap:wrap;gap:6px 16px;margin:6px 0 8px}
+.checks label{display:flex;align-items:center;gap:6px;color:var(--ink);font-size:.95rem;cursor:pointer}
+.checks input{width:17px;height:17px}
+.row-end{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;flex-wrap:wrap}
+.err{color:var(--sys);font-size:.88rem;margin-top:10px;min-height:1em}
+fieldset{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:0 0 14px}
+legend{padding:0 6px;font-weight:600;font-size:.9rem}
+.radio{display:flex;gap:10px;align-items:flex-start;padding:6px 0;cursor:pointer}
+.radio input{margin-top:4px}
+.radio small{display:block;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:.9rem;z-index:80;max-width:90vw;display:none}
+
+@media (max-width:760px){
+  .hero{grid-template-columns:1fr;gap:18px}
+  .grid2{grid-template-columns:1fr}
+  .chartbox{height:260px}
+  .form{grid-template-columns:1fr}
+  .tod b{font-size:1.35rem}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div id="errBanner" role="alert" hidden style="background:#B8324B;color:#fff;padding:12px 20px;font-size:.92rem"></div>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Blood pressure log</h1>
+      <p class="small muted" id="storageNote">Saved in this browser</p>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="addBtn">Add reading</button>
+      <button class="btn" id="importBtn">Import file</button>
+      <button class="btn" id="reportBtn">Doctor report (PDF)</button>
+      <button class="btn" id="settingsBtn">Storage and export</button>
+    </div>
+  </header>
+
+  <div class="rangebar" id="rangebar" hidden>
+    <div class="seg" role="group" aria-label="Period shown">
+      <button data-range="30">30 days</button><button data-range="90">90 days</button><button data-range="365">12 months</button><button data-range="all">All</button><button data-range="custom">Custom</button>
+    </div>
+    <div class="custom" id="customWrap" hidden>
+      <input type="date" id="fromIn" aria-label="From"><span class="muted">to</span><input type="date" id="toIn" aria-label="To">
+      <button class="btn" id="applyRange">Apply</button>
+      <span class="small" id="rangeErr" style="color:var(--sys)"></span>
+    </div>
+  </div>
+  <main id="main"></main>
+  <p class="small muted" style="margin-top:48px;text-align:center">Blood pressure log · version 30 Sep 2026 (7)</p>
+</div>
+
+<!-- Reading form -->
+<div class="modal" id="formModal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="formTitle">
+    <h2 id="formTitle">Add reading</h2>
+    <div class="form">
+      <label class="full">Date and time<input type="datetime-local" id="f_dt" required></label>
+      <label>Systolic (mmHg)<input type="number" id="f_sys" inputmode="numeric" min="60" max="280"></label>
+      <label>Diastolic (mmHg)<input type="number" id="f_dia" inputmode="numeric" min="30" max="180"></label>
+      <label>Heart rate (bpm)<input type="number" id="f_hr" inputmode="numeric" min="30" max="220"></label>
+      <label>Device<select id="f_device"></select></label>
+      <div class="full" id="newDevWrap" style="display:none;gap:8px;align-items:flex-end">
+        <label style="flex:1">New device name<input type="text" id="f_newdev" placeholder="e.g. Omron M7"></label>
+        <button class="btn" id="addDevBtn" type="button">Add device</button>
+      </div>
+      <label>Measurement<select id="f_mode"><option value="single">Single measurement</option><option value="average">Average of several</option></select></label>
+      <label id="countWrap">Number of measurements averaged<input type="number" id="f_count" min="2" max="10" value="3"></label>
+      <label>Weight today (kg)<input type="number" id="f_weight" step="0.1" min="20" max="300" inputmode="decimal"></label>
+      <label class="check full"><input type="checkbox" id="f_med"> Medicine taken</label>
+      <div class="full" id="medWrap">
+        <span class="small muted">Which medicines (tick every one taken)</span>
+        <div class="checks" id="medChecks"></div>
+        <div style="display:flex;gap:8px"><input type="text" id="f_newmed" placeholder="Add a new medicine, e.g. Ramipril 5 mg" style="flex:1;min-width:0" aria-label="New medicine name"><button class="btn" id="addMedBtn" type="button">Add</button></div>
+      </div>
+      <label class="check full"><input type="checkbox" id="f_act"> Physical activity today</label>
+      <div class="full" id="actWrap" style="grid-template-columns:130px minmax(0,1fr);gap:12px">
+        <label>Time of activity<input type="time" id="f_acttime"></label>
+        <label>What (optional)<input type="text" id="f_actnote" placeholder="e.g. 40 min brisk walk"></label>
+      </div>
+      <label class="full">Notes (optional)<textarea id="f_notes" rows="2"></textarea></label>
+    </div>
+    
+    <p class="err" id="formErr"></p>
+    <div class="row-end">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn primary" id="saveReading">Save reading</button>
+    </div>
+  </div>
+</div>
+
+<!-- Import -->
+<div class="modal" id="importModal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="importTitle">
+    <h2 id="importTitle">Import past readings</h2>
+    <p class="small">Load a CSV (from Excel, Google Sheets, or a device app) or a JSON backup from this dashboard. Columns are matched by name, in English or Italian: date, time, systolic, diastolic, pulse, device, measurement, count, weight, medicine taken, medicine, activity, notes. Dates like 29/09/2026 are read day first.</p>
+    <div class="row-end" style="justify-content:flex-start">
+      <input type="file" id="fileInput" accept=".csv,.json,.txt,.tsv">
+    </div>
+    <p class="small" style="margin-top:12px"><button class="btn link" id="templateBtn">Download a CSV template</button></p>
+    <p class="err" id="importErr"></p>
+    <div class="row-end"><button class="btn" data-close>Close</button></div>
+  </div>
+</div>
+
+<!-- Report -->
+<div class="modal" id="reportModal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="reportTitle">
+    <h2 id="reportTitle">Report for your doctor</h2>
+    <div class="form">
+      <label>Patient name<input type="text" id="r_name" autocomplete="name"></label>
+      <label>Date of birth<input type="date" id="r_dob"></label>
+    </div>
+    <p class="small muted" style="margin:14px 0 10px">The report has two sections: statistics on all your data, then statistics and every reading for the period you choose below.</p>
+    <fieldset>
+      <legend>Period for section 2</legend>
+      <div class="custom" style="flex-wrap:wrap">
+        <input type="date" id="r_from" aria-label="From"> <span class="muted">to</span> <input type="date" id="r_to" aria-label="To">
+      </div>
+      <p class="small muted" id="r_periodInfo" style="margin-top:8px"></p>
+    </fieldset>
+    <div class="form">
+      <label class="full">Notes for the doctor (optional)<textarea id="r_notes" rows="3" placeholder="Symptoms, changes in medication, questions…"></textarea></label>
+    </div>
+    <p class="err" id="reportErr"></p>
+    <div class="row-end">
+      <button class="btn" data-close>Cancel</button>
+      <button class="btn primary" id="makeReport">Create PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div class="modal" id="settingsModal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <h2 id="settingsTitle">Storage and export</h2>
+    <fieldset>
+      <legend>Where your readings are saved</legend>
+      <label class="radio"><input type="radio" name="s_mode" value="local"><span>This device only<small>Saved in this browser on this device. Nothing leaves the device; export a backup now and then.</small></span></label>
+      <label class="radio"><input type="radio" name="s_mode" value="google"><span>Google Sheets in your Google Drive<small>A spreadsheet named "Blood pressure log" in your own Drive. Open this page on any device and connect the same Google account.</small></span></label>
+    </fieldset>
+    <fieldset>
+      <legend>Google connection</legend>
+      <div class="form"><label class="full">OAuth client ID<input type="text" id="s_client" placeholder="1234567890-abc.apps.googleusercontent.com" autocomplete="off" spellcheck="false"></label></div>
+      <p class="small muted" id="gStatus" style="margin:10px 0"></p>
+      <div class="actions">
+        <button class="btn" id="gConnect">Connect Google</button>
+        <button class="btn" id="gDisconnect">Disconnect</button>
+        <a class="btn" id="gOpen" target="_blank" rel="noopener" style="text-decoration:none" hidden>Open spreadsheet</a>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Medicines</legend>
+      <div id="medManage"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <input type="text" id="s_newmed" placeholder="New medicine, e.g. Ramipril 5 mg" style="flex:1;min-width:160px" aria-label="New medicine name">
+        <button class="btn" id="s_addMed">Add medicine</button>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Devices</legend>
+      <div id="devManage"></div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <input type="text" id="s_newdev" placeholder="New device name" style="flex:1;min-width:160px" aria-label="New device name">
+        <button class="btn" id="s_addDev">Add device</button>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Export</legend>
+      <div class="actions">
+        <button class="btn" id="exportCsv">Export CSV</button>
+        <button class="btn" id="exportJson">Export JSON backup</button>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Delete</legend>
+      <button class="btn danger" id="wipeBtn">Delete all readings</button>
+    </fieldset>
+    <div class="row-end"><button class="btn" data-close>Close</button></div>
+  </div>
+</div>
+
+<!-- Confirm -->
+<div class="modal" id="askModal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="askTitle" style="max-width:440px">
+    <h2 id="askTitle"></h2>
+    <p id="askText"></p>
+    <div class="row-end" id="askBtns"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+"use strict";
+const $ = s => document.querySelector(s);
+const LS_DATA='bp.readings.v1', LS_MODE='bp.storage.v1', LS_SET='bp.settings.v1';
+const lsGet = k => { try { return localStorage.getItem(k); } catch(e){ return null; } };
+const lsSet = (k,v) => { try { localStorage.setItem(k,v); return true; } catch(e){ return false; } };
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const newId = () => Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const pad = n => String(n).padStart(2,'0');
+const toDT = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const parseDT = s => { const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s||''); return m?new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]):null; };
+const dayDate = s => { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); };
+const fmtDay = s => dayDate(s.slice(0,10)).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'});
+const fmtDayShort = s => dayDate(s.slice(0,10)).toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});
+const numDate = s => { const [y,m,d]=s.slice(0,10).split('-'); return `${d}/${m}/${y}`; };
+const r0 = x => x==null||isNaN(x)?'–':String(Math.round(x));
+const r1 = x => x==null||isNaN(x)?'–':(Math.round(x*10)/10).toFixed(1);
+
+const state = {
+  readings: [], mode: lsGet(LS_MODE)==='google'?'google':'local',
+  range:'90', from:'', to:'', showHR:true,
+  settings: (()=>{ try { return JSON.parse(lsGet(LS_SET)||'{}')||{}; } catch(e){ return {}; } })(),
+  editing:null
+};
+
+function normTime(v){ const m=/^(\d{1,2})[:.](\d{2})/.exec(String(v||'').trim()); return m&&+m[1]<24&&+m[2]<60?`${pad(+m[1])}:${m[2]}`:''; }
+function norm(r){
+  const num = v => (v==null||v===''||isNaN(+v)) ? null : +v;
+  const mode = r.mode==='average'?'average':'single';
+  return { id:r.id||newId(), dt:r.dt, sys:+r.sys, dia:+r.dia, hr:num(r.hr),
+    device:String(r.device||'').trim(), mode, count: mode==='average'?(num(r.count)||null):1,
+    weight:num(r.weight), med:!!r.med, medicine:String(r.medicine||'').trim(),
+    activity:!!r.activity, activityTime:normTime(r.activityTime), activityNote:String(r.activityNote||'').trim(), notes:String(r.notes||'').trim() };
+}
+const sortReadings = () => state.readings.sort((a,b)=> a.dt<b.dt?-1:a.dt>b.dt?1:0);
+
+/* ---------- Persistence ---------- */
+function loadLocal(){
+  try { const arr = JSON.parse(lsGet(LS_DATA)||'[]'); return Array.isArray(arr)?arr.filter(r=>r&&r.dt).map(norm):[]; } catch(e){ return []; }
+}
+function saveLocal(){ if(!lsSet(LS_DATA, JSON.stringify(state.readings))) toast('Could not save in this browser. Export a backup to keep your data.'); }
+/* ---------- Google Sheets storage (data lives only in your Drive) ---------- */
+const DEFAULT_CLIENT_ID = ''; // Optional: paste your OAuth client ID here so every device has it.
+const SCOPE='https://www.googleapis.com/auth/drive.file';
+const SHEETS='https://sheets.googleapis.com/v4/spreadsheets';
+const SHEET_TITLE='Blood pressure log';
+const G={ token:null, exp:0, sheetId:lsGet('bp.sheetId')||'', connected:false, loading:false, dirty:false, deleted:new Set() };
+const clientId=()=>(lsGet('bp.clientId')||DEFAULT_CLIENT_ID||'').trim();
+try{ const t=JSON.parse(sessionStorage.getItem('bp.gtoken')||'null'); if(t&&t.exp>Date.now()+120000){ G.token=t.token; G.exp=t.exp; } }catch(e){}
+const headRow=()=>['id',...CSV_HEAD];
+const rowOf=r=>[r.id,r.dt.slice(0,10),r.dt.slice(11,16),r.sys,r.dia,r.hr??'',r.device,r.mode,r.mode==='average'?(r.count||''):1,r.weight??'',r.med?'yes':'no',r.medicine,r.activity?'yes':'no',r.activityTime||'',r.activityNote,r.notes];
+
+function waitGIS(){ return new Promise((res,rej)=>{ let n=0; (function chk(){ if(window.google&&google.accounts&&google.accounts.oauth2) return res(); if(++n>100) return rej(new Error('Google sign-in did not load. Check your connection and reload.')); setTimeout(chk,100); })(); }); }
+async function getToken(){
+  if(G.token && Date.now()<G.exp-60000) return G.token;
+  const cid=clientId(); if(!cid) throw new Error('Add your Google OAuth client ID in Storage and export first.');
+  await waitGIS();
+  return new Promise((res,rej)=>{
+    const client=google.accounts.oauth2.initTokenClient({client_id:cid, scope:SCOPE,
+      callback:r=>{
+        if(r.error) return rej(new Error(r.error_description||r.error));
+        G.token=r.access_token; G.exp=Date.now()+(+r.expires_in||3600)*1000;
+        try{ sessionStorage.setItem('bp.gtoken',JSON.stringify({token:G.token,exp:G.exp})); }catch(e){}
+        res(G.token);
+      },
+      error_callback:e=>rej(new Error(e&&e.type==='popup_closed'?'The Google window was closed before finishing.':e&&e.type==='popup_failed_to_open'?'Your browser blocked the Google window. Allow pop-ups for this page and try again.':'Google sign-in failed.'))
+    });
+    client.requestAccessToken({prompt:''});
+  });
+}
+function dropToken(){ G.token=null; G.exp=0; G.connected=false; try{ sessionStorage.removeItem('bp.gtoken'); }catch(e){} }
+async function gFetch(url,opt={}){
+  if(!G.token||Date.now()>G.exp-30000){ dropToken(); throw Object.assign(new Error('Your Google session expired.'),{code:'auth'}); }
+  const r=await fetch(url,Object.assign({},opt,{headers:Object.assign({'Authorization':'Bearer '+G.token,'Content-Type':'application/json'},opt.headers||{})}));
+  if(r.status===401){ dropToken(); throw Object.assign(new Error('Your Google session expired.'),{code:'auth'}); }
+  if(!r.ok){ let m=''; try{ m=(await r.json()).error.message; }catch(e){} throw Object.assign(new Error(m||('Google returned error '+r.status)),{code:r.status}); }
+  return r.status===204?null:r.json();
+}
+const rng=a1=>encodeURIComponent(a1);
+async function ensureSheet(){
+  if(G.sheetId){
+    try{ await gFetch(`${SHEETS}/${G.sheetId}?fields=spreadsheetId`); return G.sheetId; }
+    catch(e){ if(e.code==='auth') throw e; G.sheetId=''; }
+  }
+  const q=encodeURIComponent(`name='${SHEET_TITLE}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false`);
+  const list=await gFetch(`https://www.googleapis.com/drive/v3/files?q=${q}&orderBy=${encodeURIComponent('modifiedTime desc')}&fields=${encodeURIComponent('files(id,name)')}&spaces=drive`);
+  if(list&&list.files&&list.files.length) G.sheetId=list.files[0].id;
+  else {
+    const sh=await gFetch(SHEETS,{method:'POST',body:JSON.stringify({properties:{title:SHEET_TITLE},sheets:[{properties:{title:'Readings',gridProperties:{frozenRowCount:1}}},{properties:{title:'Settings'}}]})});
+    G.sheetId=sh.spreadsheetId;
+    await gFetch(`${SHEETS}/${G.sheetId}/values/${rng('Readings!A1')}?valueInputOption=RAW`,{method:'PUT',body:JSON.stringify({values:[headRow()]})});
+  }
+  lsSet('bp.sheetId',G.sheetId); return G.sheetId;
+}
+async function readSheet(){
+  const id=await ensureSheet();
+  const r=await gFetch(`${SHEETS}/${id}/values/${rng('Readings!A1:P')}`);
+  try{
+    const st=await gFetch(`${SHEETS}/${id}/values/${rng('Settings!A1:B10')}`);
+    (st.values||[]).forEach(([k,v])=>{ if(k==='patient') state.settings.patient=v||''; if(k==='dob') state.settings.dob=v||''; if(k==='medicines'&&v) state.settings.medicines=String(v).split('|').map(x=>x.trim()).filter(Boolean); if(k==='devices'&&v) state.settings.devices=String(v).split('|').map(x=>x.trim()).filter(Boolean); });
+  }catch(e){ if(e.code==='auth') throw e; }
+  const rows=(r.values||[]).map(row=>row.map(c=>String(c??'')));
+  if(rows.length<2) return [];
+  return importRows(rows).out;
+}
+async function writeSheet(){
+  const id=await ensureSheet();
+  const remote=await readSheet();                      // pick up readings added on other devices
+  const have=new Set(state.readings.map(r=>r.id)); let pulled=0;
+  remote.forEach(r=>{ if(!have.has(r.id)&&!G.deleted.has(r.id)){ state.readings.push(r); pulled++; } });
+  if(pulled) sortReadings();
+  await gFetch(`${SHEETS}/${id}/values/${rng('Readings!A:P')}:clear`,{method:'POST',body:'{}'});
+  await gFetch(`${SHEETS}/${id}/values/${rng('Readings!A1')}?valueInputOption=RAW`,{method:'PUT',body:JSON.stringify({values:[headRow(),...state.readings.map(rowOf)]})});
+  return pulled;
+}
+let saveT=null, saving=Promise.resolve(), syncMsg='';
+function scheduleGoogleSave(){ G.dirty=true; updateStorageNote(); clearTimeout(saveT); saveT=setTimeout(()=>{ saving=saving.then(doSave); },700); }
+async function doSave(){
+  if(!G.dirty) return;
+  if(!G.connected){ render(); return; }
+  G.dirty=false; syncMsg='Saving…'; updateStorageNote();
+  try{
+    const pulled=await writeSheet(); syncMsg='';
+    if(pulled){ render(); toast(`${pulled} reading${pulled===1?'':'s'} from your other devices added.`); } else updateStorageNote();
+  }catch(e){
+    G.dirty=true; syncMsg='';
+    if(e.code==='auth'){ render(); toast('Google session expired. Reconnect to save your changes.'); }
+    else { updateStorageNote(); toast('Could not save to Google Sheets: '+e.message); }
+  }
+}
+async function connectGoogle(){
+  const wasDirty=G.dirty;
+  try{
+    await getToken(); G.connected=true; G.loading=true; render();
+    const remote=await readSheet();
+    state.readings = wasDirty ? mergeReadings(remote,state.readings).list : remote;
+    sortReadings(); G.loading=false; render(); updateSettingsUI();
+    if(wasDirty) scheduleGoogleSave();
+    return true;
+  }catch(e){
+    G.loading=false; if(e.code==='auth') dropToken(); G.connected=false;
+    render(); updateSettingsUI(); toast(e.message); return false;
+  }
+}
+function disconnectGoogle(){
+  try{ if(G.token&&window.google&&google.accounts) google.accounts.oauth2.revoke(G.token,()=>{}); }catch(e){}
+  dropToken(); if(state.mode==='google'){ state.readings=[]; G.dirty=false; }
+  render(); updateSettingsUI(); toast('Disconnected from Google.');
+}
+async function pullGoogle(){
+  if(state.mode!=='google'||!G.connected||G.dirty||G.loading) return;
+  try{ const remote=await readSheet(); if(!G.dirty){ state.readings=remote; sortReadings(); render(); } }
+  catch(e){ if(e.code==='auth') render(); }
+}
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') pullGoogle(); });
+
+function persist(){
+  if(state.mode==='google') scheduleGoogleSave(); else saveLocal();
+}
+function saveSettings(){
+  lsSet(LS_SET, JSON.stringify(state.settings));
+  if(state.mode==='google'&&G.connected&&G.sheetId){
+    saving=saving.then(()=>gFetch(`${SHEETS}/${G.sheetId}/values/${rng('Settings!A1')}?valueInputOption=RAW`,{method:'PUT',body:JSON.stringify({values:[['patient',state.settings.patient||''],['dob',state.settings.dob||''],['devices',deviceNames().join('|')],['medicines',medicineNames().join('|')]]})}).catch(()=>{}));
+  }
+}
+function updateStorageNote(){
+  const n=state.readings.length, cnt=`${n} reading${n===1?'':'s'}`;
+  let t;
+  if(state.mode==='google') t = !G.connected ? 'Google Sheets · not connected' : `Saved in Google Sheets · ${cnt}${syncMsg?' · '+syncMsg:G.dirty?' · saving…':''}`;
+  else t=`Saved on this device · ${cnt}`;
+  $('#storageNote').textContent=t;
+}
+function updateSettingsUI(){
+  syncSettingsRadios();
+  $('#s_client').value=clientId();
+  $('#gStatus').textContent = G.connected ? 'Connected. Readings are read from and written to your Google spreadsheet.' : clientId() ? 'Not connected on this device.' : 'Enter the client ID you created in Google Cloud, then connect.';
+  $('#gConnect').hidden=G.connected; $('#gDisconnect').hidden=!G.connected;
+  const o=$('#gOpen'); if(G.connected&&G.sheetId){ o.hidden=false; o.href='https://docs.google.com/spreadsheets/d/'+G.sheetId; } else o.hidden=true;
+}
+
+async function switchMode(target){
+  if(target===state.mode) return;
+  let targetData;
+  if(target==='google'){
+    if(!clientId()){ toast('Enter your Google OAuth client ID first.'); syncSettingsRadios(); return; }
+    try{ await getToken(); G.connected=true; targetData=await readSheet(); }
+    catch(e){ G.connected=false; toast(e.message); syncSettingsRadios(); updateSettingsUI(); return; }
+  } else targetData=loadLocal();
+  const cur=state.readings; let merged=targetData, copy=false;
+  const label = target==='google'?'your Google spreadsheet':'this device';
+  if(cur.length){
+    const choice = await ask('Switch storage',
+      targetData.length ? `${label[0].toUpperCase()+label.slice(1)} already has ${targetData.length} readings. Add the ${cur.length} readings shown now to them?` : `Copy the ${cur.length} readings shown now to ${label}?`,
+      [{k:'no',t:targetData.length?'Use only what is there':'Start empty'},{k:'yes',t:targetData.length?'Merge readings':'Copy readings',p:true}]);
+    if(choice===null){ syncSettingsRadios(); return; }
+    if(choice==='yes'){ merged=mergeReadings(targetData,cur).list; copy=true; }
+  }
+  state.mode=target; lsSet(LS_MODE,target);
+  state.readings=merged; sortReadings();
+  if(target==='google'){ if(copy) scheduleGoogleSave(); } else saveLocal();
+  render(); updateSettingsUI(); toast(`Now saving to ${label}.`);
+}
+function mergeReadings(base, add, update){
+  const key = r => `${r.dt}|${r.sys}|${r.dia}|${(r.device||'').toLowerCase()}`;
+  const pos = new Map(base.map((r,i)=>[key(r),i])); const list=base.slice(); let added=0, dup=0, updated=0;
+  add.forEach(r=>{
+    const k=key(r);
+    if(pos.has(k)){
+      if(update){ const i=pos.get(k), old=list[i]; const nw=Object.assign({},r,{id:old.id});
+        if(JSON.stringify(nw)!==JSON.stringify(old)){ list[i]=nw; updated++; } else dup++; }
+      else dup++;
+    } else { pos.set(k,list.length); list.push(r); added++; }
+  });
+  return {list, added, dup, updated};
+}
+const countLabel=(r,short)=>r.mode==='average' ? (r.count ? `${short?'Avg':'Average of'} ${r.count}` : 'Average') : 'Single';
+
+/* ---------- Stats ---------- */
+function st(arr){
+  const v=arr.filter(x=>x!=null&&!isNaN(x)); const n=v.length; if(!n) return {n:0};
+  const mean=v.reduce((a,b)=>a+b,0)/n;
+  const sd=n>1?Math.sqrt(v.reduce((a,b)=>a+(b-mean)**2,0)/(n-1)):0;
+  return {n,mean,sd,min:Math.min(...v),max:Math.max(...v)};
+}
+const isHigh = r => r.sys>=135 || r.dia>=85;
+const ppOf=r=>r.sys-r.dia, mapOf=r=>r.dia+(r.sys-r.dia)/3;
+function summarize(list){ return {n:list.length, sys:st(list.map(r=>r.sys)), dia:st(list.map(r=>r.dia)), hr:st(list.map(r=>r.hr)), pp:st(list.map(ppOf)), map:st(list.map(mapOf)), high:list.filter(isHigh).length}; }
+function monthly(list){
+  const m=new Map(); list.forEach(r=>{ const k=r.dt.slice(0,7); if(!m.has(k)) m.set(k,[]); m.get(k).push(r); });
+  return [...m].sort((a,b)=>a[0]<b[0]?-1:1).map(([k,rs])=>({month:k, label:dayDate(k+'-01').toLocaleDateString('en-GB',{month:'short',year:'numeric'}), s:summarize(rs), days:new Set(rs.map(r=>r.dt.slice(0,10))).size}));
+}
+// Linear trend through daily averages (each day weighs the same, however many readings it has)
+function trend(list){
+  const dl=days(list); if(dl.length<10) return null;
+  const t0=dayDate(dl[0].day).getTime(), yr=365.25*864e5;
+  const xs=dl.map(d=>(dayDate(d.day).getTime()-t0)/yr), span=xs[xs.length-1];
+  if(span<60/365.25) return null;
+  const fit=ys=>{ const p=xs.map((x,i)=>[x,ys[i]]).filter(q=>q[1]!=null&&!isNaN(q[1])); const n=p.length; if(n<10) return null;
+    const mx=p.reduce((a,q)=>a+q[0],0)/n, my=p.reduce((a,q)=>a+q[1],0)/n; let sxx=0,sxy=0; p.forEach(([x,y])=>{ sxx+=(x-mx)**2; sxy+=(x-mx)*(y-my); });
+    return sxx?sxy/sxx:null; };
+  return {sys:fit(dl.map(d=>d.sys)), dia:fit(dl.map(d=>d.dia)), pp:fit(dl.map(d=>d.sys-d.dia)), map:fit(dl.map(d=>d.dia+(d.sys-d.dia)/3)), hr:fit(dl.map(d=>d.hr)), days:dl.length, span};
+}
+const sgn1=(v,ascii)=>v==null||isNaN(v)?'–':(v>0?'+':v<0?(ascii?'-':'−'):'')+Math.abs(Math.round(v*10)/10).toFixed(1);
+function trendText(T,ascii){ const f=v=>sgn1(v,ascii);
+  if(!T) return 'Not enough data for a trend (needs at least 10 days spread over 2 months or more).';
+  return `Systolic ${f(T.sys)}, diastolic ${f(T.dia)} mmHg per year · pulse pressure ${f(T.pp)}, mean arterial pressure ${f(T.map)} mmHg per year${T.hr!=null?` · pulse ${f(T.hr)} bpm per year`:''}. Straight line through ${T.days} daily averages over ${T.span<1?Math.round(T.span*12)+' months':(Math.round(T.span*10)/10)+' years'}.`;
+}
+function period(r){ const h=+r.dt.slice(11,13); return h>=5&&h<12?'morning':h>=12&&h<18?'afternoon':'evening'; }
+const PERIODS=[['morning','Morning','05:00–11:59'],['afternoon','Afternoon','12:00–17:59'],['evening','Evening','18:00–04:59']];
+function byDay(list){ const m=new Map(); list.forEach(r=>{ const d=r.dt.slice(0,10); if(!m.has(d)) m.set(d,[]); m.get(d).push(r); }); return m; }
+function days(list){
+  return [...byDay(list)].map(([day,rs])=>{
+    let w=null; rs.forEach(r=>{ if(r.weight!=null) w=r.weight; });
+    return {day, sys:st(rs.map(r=>r.sys)).mean, dia:st(rs.map(r=>r.dia)).mean, hr:st(rs.map(r=>r.hr)).mean,
+      weight:w, activity:rs.some(r=>r.activity), med:rs.some(r=>r.med), rs};
+  }).sort((a,b)=>a.day<b.day?-1:1);
+}
+function pearson(xs,ys){
+  const n=xs.length; if(n<5) return null;
+  const mx=xs.reduce((a,b)=>a+b,0)/n, my=ys.reduce((a,b)=>a+b,0)/n;
+  let num=0,dx=0,dy=0; for(let i=0;i<n;i++){ num+=(xs[i]-mx)*(ys[i]-my); dx+=(xs[i]-mx)**2; dy+=(ys[i]-my)**2; }
+  if(!dx||!dy) return null; return num/Math.sqrt(dx*dy);
+}
+function describeR(r){
+  if(r==null) return 'not enough days with both weight and blood pressure';
+  const a=Math.abs(r); const s = a<0.2?'no clear':a<0.4?'a weak':a<0.6?'a moderate':'a strong';
+  return a<0.2 ? `no clear relationship (r = ${r.toFixed(2)})` : `${s} ${r>0?'positive':'negative'} relationship (r = ${r.toFixed(2)})`;
+}
+const ACT_GROUPS=[['before','Measured before exercising (same day)'],['0-2','Up to 2 hours after exercise'],['2-6','2 to 6 hours after exercise'],['6+','More than 6 hours after exercise'],['unknown','Exercise day, time not recorded'],['none','Days without exercise']];
+function actDayMap(src){
+  const m=new Map();
+  src.forEach(r=>{ const d=r.dt.slice(0,10); const e=m.get(d)||{active:false,times:new Set()}; if(r.activity){ e.active=true; if(r.activityTime) e.times.add(+r.activityTime.slice(0,2)*60+ +r.activityTime.slice(3,5)); } m.set(d,e); });
+  return m;
+}
+function actRelation(r,map){
+  const e=map.get(r.dt.slice(0,10)); if(!e||!e.active) return 'none';
+  if(!e.times.size) return 'unknown';
+  const t=+r.dt.slice(11,13)*60+ +r.dt.slice(14,16);
+  const before=[...e.times].filter(x=>x<=t); if(!before.length) return 'before';
+  const gap=t-Math.max(...before); return gap<=120?'0-2':gap<=360?'2-6':'6+';
+}
+function activityGroups(list){
+  const map=actDayMap(list);
+  return ACT_GROUPS.map(([k,label])=>({label, list:list.filter(r=>actRelation(r,map)===k)})).filter(g=>g.list.length);
+}
+const actLabel=r=>r.activity?[r.activityTime,r.activityNote].filter(Boolean).join(' ')||'Yes':'–';
+function medGroups(list){
+  const groups=[{label:'No medicine recorded', list:list.filter(r=>!r.med)}];
+  const withMed=list.filter(r=>r.med);
+  if(withMed.length){
+    groups.push({label:'Any medicine', list:withMed});
+    const names=new Map(); withMed.forEach(r=>{ const k=r.medicine||'Medicine not specified'; if(!names.has(k)) names.set(k,[]); names.get(k).push(r); });
+    if(names.size>1 || ![...names.keys()].includes('Medicine not specified'))
+      [...names].sort((a,b)=>b[1].length-a[1].length).forEach(([k,l])=>groups.push({label:k, list:l, sub:true}));
+  }
+  return groups.filter(g=>g.list.length);
+}
+function weightBands(dayList){
+  const m=new Map(); dayList.filter(d=>d.weight!=null).forEach(d=>{ const lo=Math.floor(d.weight/2)*2; if(!m.has(lo)) m.set(lo,[]); m.get(lo).push(...d.rs); });
+  return [...m].sort((a,b)=>a[0]-b[0]).map(([lo,rs])=>({label:`${lo}–${lo+1.9} kg`, list:rs}));
+}
+
+/* ---------- Range ---------- */
+function bounds(){
+  if(state.range==='all') return [null,null];
+  if(state.range==='custom') return [state.from||null, state.to||null];
+  const d=new Date(); d.setDate(d.getDate()-(+state.range)+1); return [toDT(d).slice(0,10), null];
+}
+const inB = (r,[a,b]) => { const d=r.dt.slice(0,10); return (!a||d>=a)&&(!b||d<=b); };
+const filtered = () => { const b=bounds(); return state.readings.filter(r=>inB(r,b)); };
+function rangeLabel(){
+  return {'30':'last 30 days','90':'last 90 days','365':'last 12 months','all':'all readings'}[state.range] ||
+    `${state.from?fmtDay(state.from):'start'} to ${state.to?fmtDay(state.to):'today'}`;
+}
+
+/* ---------- Chart ---------- */
+function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function themeColors(){ return {sys:cssVar('--sys'),dia:cssVar('--dia'),hr:cssVar('--hr'),grid:cssVar('--line'),text:cssVar('--muted'),bg:cssVar('--surface')}; }
+function chartDomain(pts){
+  let t0=pts[0].t, t1=pts[pts.length-1].t; if(t1-t0<864e5){ t0-=432e5; t1+=432e5; }
+  const sysMax=Math.max(...pts.map(p=>p.sys)), diaMin=Math.min(...pts.map(p=>p.dia));
+  const y0=Math.min(60, Math.floor((diaMin-10)/20)*20), y1=Math.max(160, Math.ceil((sysMax+10)/20)*20);
+  const hrs=pts.map(p=>p.hr).filter(v=>v!=null);
+  const h0=Math.min(40, Math.floor((Math.min(...hrs,60)-10)/20)*20), h1=Math.max(120, Math.ceil((Math.max(...hrs,100)+10)/20)*20);
+  return {t0,t1,y0,y1,h0,h1};
+}
+const dailyPts = dl => dl.map(d=>({t:dayDate(d.day).getTime()+432e5, sys:d.sys, dia:d.dia, hr:d.hr, d}));
+function drawChart(ctx, W, H, pts, o){
+  const c=o.colors, f=o.font||'12px "Public Sans", system-ui, sans-serif';
+  ctx.clearRect(0,0,W,H);
+  if(o.fill){ ctx.fillStyle=o.fill; ctx.fillRect(0,0,W,H); }
+  const showHR = o.showHR && pts.some(p=>p.hr!=null);
+  const L=42, R=showHR?42:14, T=12, B=26, pw=W-L-R, ph=H-T-B;
+  if(!pts.length) return [];
+  const {t0,t1,y0,y1,h0,h1}=o.dom||chartDomain(pts);
+  const X=t=>L+(t-t0)/(t1-t0)*pw, Y=v=>T+(1-(v-y0)/(y1-y0))*ph, YH=v=>T+(1-(v-h0)/(h1-h0))*ph;
+  ctx.font=f; ctx.textBaseline='middle';
+  ctx.strokeStyle=c.grid; ctx.lineWidth=1; ctx.fillStyle=c.text;
+  for(let v=y0; v<=y1; v+=20){ const y=Math.round(Y(v))+.5; ctx.beginPath(); ctx.moveTo(L,y); ctx.lineTo(L+pw,y); ctx.stroke(); ctx.textAlign='right'; ctx.fillText(v,L-8,y); }
+  if(showHR){ ctx.textAlign='left'; ctx.fillStyle=c.hr; for(let v=h0; v<=h1; v+=20){ ctx.fillText(v,L+pw+8,YH(v)); } }
+  // reference lines
+  ctx.setLineDash([5,4]); ctx.lineWidth=1.2;
+  [[135,c.sys],[85,c.dia]].forEach(([v,col])=>{ if(v>y0&&v<y1){ ctx.strokeStyle=col; ctx.globalAlpha=.55; ctx.beginPath(); ctx.moveTo(L,Y(v)); ctx.lineTo(L+pw,Y(v)); ctx.stroke(); ctx.globalAlpha=1; }});
+  ctx.setLineDash([]);
+  // x ticks
+  const nT=Math.max(2,Math.min(7,Math.floor(pw/95))); const span=(t1-t0)/864e5;
+  ctx.fillStyle=c.text; ctx.textAlign='center'; ctx.textBaseline='top';
+  for(let i=0;i<nT;i++){ const t=t0+(t1-t0)*i/(nT-1); const d=new Date(t);
+    const lab = span>300 ? d.toLocaleDateString('en-GB',{month:'short',year:'2-digit'}) : d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+    ctx.textAlign = i===0?'left':i===nT-1?'right':'center'; ctx.fillText(lab, X(t), T+ph+8); }
+  const series=[['sys',c.sys,Y],['dia',c.dia,Y]]; if(showHR) series.push(['hr',c.hr,YH]);
+  const dot = pts.length<160;
+  series.forEach(([k,col,Yf])=>{
+    const ps=pts.filter(p=>p[k]!=null); if(!ps.length) return;
+    ctx.strokeStyle=col; ctx.lineWidth=k==='hr'?1.4:2; ctx.globalAlpha=k==='hr'?.75:1; ctx.lineJoin='round';
+    ctx.beginPath(); ps.forEach((p,i)=>{ const x=X(p.t),y=Yf(p[k]); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.stroke();
+    if(dot){ ctx.fillStyle=col; ps.forEach(p=>{ ctx.beginPath(); ctx.arc(X(p.t),Yf(p[k]),k==='hr'?1.8:2.6,0,Math.PI*2); ctx.fill(); }); }
+    ctx.globalAlpha=1;
+  });
+  return pts.map(p=>({x:X(p.t), y:Y(p.sys), p}));
+}
+function sizeCanvas(cv){
+  const r=cv.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+  cv.width=Math.max(1,Math.round(r.width*dpr)); cv.height=Math.max(1,Math.round(r.height*dpr));
+  const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); return [ctx,r.width,r.height];
+}
+const hits={chart:[], chartDay:[]};
+function renderChart(){
+  const cv=$('#chart'); if(!cv) return;
+  const list=filtered();
+  const pts=list.map(r=>({t:parseDT(r.dt).getTime(), sys:r.sys, dia:r.dia, hr:r.hr, r}));
+  const dom=pts.length?chartDomain(pts):null, colors=themeColors();
+  const [ctx,W,H]=sizeCanvas(cv);
+  hits.chart=drawChart(ctx,W,H,pts,{colors,showHR:state.showHR,dom});
+  const cd=$('#chartDay'); if(cd){ const [c2,W2,H2]=sizeCanvas(cd); hits.chartDay=drawChart(c2,W2,H2,dailyPts(days(list)),{colors,showHR:state.showHR,dom}); }
+  const wc=$('#wspark'); if(wc){
+    const [wctx,ww,wh]=sizeCanvas(wc); const dl=days(filtered()).filter(d=>d.weight!=null);
+    wctx.clearRect(0,0,ww,wh);
+    if(dl.length>1){
+      const ws=dl.map(d=>d.weight), lo=Math.min(...ws)-0.5, hi=Math.max(...ws)+0.5;
+      const t0=dayDate(dl[0].day).getTime(), t1=dayDate(dl[dl.length-1].day).getTime()||t0+1;
+      const X=t=>6+(t-t0)/((t1-t0)||1)*(ww-12), Y=v=>6+(1-(v-lo)/(hi-lo))*(wh-22);
+      wctx.strokeStyle=cssVar('--ink'); wctx.lineWidth=1.8; wctx.beginPath();
+      dl.forEach((d,i)=>{ const x=X(dayDate(d.day).getTime()), y=Y(d.weight); i?wctx.lineTo(x,y):wctx.moveTo(x,y); }); wctx.stroke();
+      wctx.fillStyle=cssVar('--muted'); wctx.font='11px "Public Sans", system-ui, sans-serif'; wctx.textBaseline='bottom';
+      wctx.textAlign='left'; wctx.fillText(`${r1(ws[0])} kg`,6,wh); wctx.textAlign='right'; wctx.fillText(`${r1(ws[ws.length-1])} kg`,ww-6,wh);
+    }
+  }
+}
+function chartHover(e, id){
+  const cv=$('#'+id), tip=$('#tip_'+id), hp=hits[id]; if(!cv||!tip||!hp||!hp.length) return;
+  const r=cv.getBoundingClientRect(), x=e.clientX-r.left;
+  let best=null, bd=Infinity; hp.forEach(h=>{ const d=Math.abs(h.x-x); if(d<bd){bd=d;best=h;} });
+  if(!best||bd>30){ tip.style.display='none'; return; }
+  if(best.p.r){
+    const rd=best.p.r;
+    tip.innerHTML=`${esc(fmtDayShort(rd.dt))}, ${rd.dt.slice(11,16)}<br><b>${rd.sys}/${rd.dia}</b>${rd.hr!=null?` · pulse ${rd.hr}`:''}${rd.med?`<br>${esc(rd.medicine||'Medicine taken')}`:''}`;
+  } else {
+    const d=best.p.d;
+    tip.innerHTML=`${esc(fmtDayShort(d.day))}<br><b>${r0(d.sys)}/${r0(d.dia)}</b>${d.hr!=null&&!isNaN(d.hr)?` · pulse ${r0(d.hr)}`:''}<br>average of ${d.rs.length} reading${d.rs.length===1?'':'s'}`;
+  }
+  tip.style.display='block'; tip.style.left=Math.min(Math.max(best.x,70),r.width-70)+'px'; tip.style.top=best.y+'px';
+}
+
+/* ---------- Rendering ---------- */
+function bpCell(s){ if(!s.sys.n) return '–'; return `<span class="bp">${r0(s.sys.mean)}/${r0(s.dia.mean)}<span class="sd">±${r0(s.sys.sd)}/${r0(s.dia.sd)}</span></span>`; }
+function groupTable(groups, firstHead){
+  return `<div class="scroll"><table><thead><tr><th>${firstHead}</th><th class="num">Readings</th><th class="num">Blood pressure</th><th class="num">Pulse</th><th class="num">At or above 135/85</th></tr></thead><tbody>${
+    groups.map(g=>{ const s=summarize(g.list); return `<tr><td${g.sub?' style="padding-left:20px"':''}>${esc(g.label)}</td><td class="num">${s.n}</td><td class="num">${bpCell(s)}</td><td class="num">${r0(s.hr.mean)}</td><td class="num">${s.n?Math.round(s.high/s.n*100)+'%':'–'}</td></tr>`; }).join('')
+  }</tbody></table></div>`;
+}
+let showAll=false;
+function render(){
+  updateStorageNote(); syncRangebar();
+  const main=$('#main');
+  if(state.mode==='google'&&G.loading){ main.innerHTML='<p class="muted" style="padding:40px 0">Loading your readings from Google Sheets…</p>'; return; }
+  const banner = state.mode==='google'&&!G.connected ? `<section class="panel" style="margin-top:20px"><h2>Connect Google to ${state.readings.length?'save your changes':'see your readings'}</h2><p class="muted" style="margin:6px 0 12px">Your readings are kept in a spreadsheet in your Google Drive${G.dirty?'. Changes made on this page are not saved yet':''}.</p><div class="actions"><button class="btn primary" data-act="gconnect">Connect Google</button><button class="btn" data-act="settings">Storage settings</button></div></section>` : '';
+  if(!state.readings.length){
+    if(banner){ main.innerHTML=banner; return; }
+    main.innerHTML=`<section class="empty"><h2>No readings yet</h2><p class="muted">Add today's measurement, or import readings you've kept in a spreadsheet or device app.</p><div class="actions"><button class="btn primary" data-act="add">Add reading</button><button class="btn" data-act="import">Import file</button></div></section>`;
+    return;
+  }
+  const list=filtered(), S=summarize(list), last=state.readings[state.readings.length-1];
+  const dl=days(list);
+  // hero
+  let html=`<section class="hero">
+    <div>
+      <p class="muted small">Latest reading · ${esc(fmtDayShort(last.dt))}, ${last.dt.slice(11,16)}</p>
+      <div class="reading" aria-label="${last.sys} over ${last.dia} millimetres of mercury"><span class="s">${last.sys}</span><span class="slash">/</span><span class="d">${last.dia}</span><span class="unit">mmHg${last.hr!=null?` · pulse ${last.hr}`:''}</span></div>
+      <p class="hero-meta"><span class="chip ${isHigh(last)?'high':'ok'}">${isHigh(last)?'At or above 135/85':'Below 135/85'}</span> ${last.mode==='average'?(last.count?`average of ${last.count} measurements`:'average of several measurements'):'single measurement'}${last.device?' · '+esc(last.device):''}</p>
+    </div>
+    <div>
+      <p class="muted small" style="margin-bottom:8px">Averages, ${esc(rangeLabel())}</p>
+      <div class="avgs">
+        <div><b>${S.n?r0(S.sys.mean)+'/'+r0(S.dia.mean):'–'}</b><span>mmHg</span></div>
+        <div><b>${r0(S.hr.mean)}</b><span>pulse, bpm</span></div>
+        <div><b>${S.n?Math.round(S.high/S.n*100)+'%':'–'}</b><span>at or above 135/85</span></div>
+        <div><b>${r0(S.pp.mean)}</b><span>pulse pressure, mmHg</span></div>
+        <div><b>${r0(S.map.mean)}</b><span>mean arterial pressure, mmHg</span></div>
+        <div><b>${S.n}</b><span>readings on ${dl.length} days</span></div>
+      </div>
+    </div>
+  </section>`;
+  if(!list.length){
+    html+=`<div class="panel empty"><h2>No readings in this period</h2><p class="muted">Pick a longer period or add a reading.</p></div>`;
+  } else {
+    html+=`<section class="panel"><div class="panel-head"><h2>Progression</h2>
+      <div class="legend"><span><i style="background:var(--sys)"></i>Systolic</span><span><i style="background:var(--dia)"></i>Diastolic</span>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="hrToggle" ${state.showHR?'checked':''}><i style="background:var(--hr);margin-right:0"></i>Pulse (right axis)</label>
+      <span>Dashed lines: 135 and 85</span></div></div>
+      <h3 style="margin:4px 0 8px">Every reading</h3>
+      <div class="chartbox"><canvas id="chart" role="img" aria-label="Every blood pressure reading over time"></canvas><div class="tip" id="tip_chart"></div></div>
+      <h3 style="margin:22px 0 8px">Daily averages</h3>
+      <div class="chartbox"><canvas id="chartDay" role="img" aria-label="Daily average blood pressure over time"></canvas><div class="tip" id="tip_chartDay"></div></div>
+      <p class="small muted" style="margin-top:8px">Both charts use the same scale, so you can compare them directly.</p></section>`;
+    // monthly
+    const mons=monthly(list).reverse();
+    html+=`<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Monthly averages and trend</h2><span class="small muted">${mons.length} month${mons.length===1?'':'s'}</span></div>
+      <p style="margin-bottom:12px">${esc(trendText(trend(list)))}</p>
+      <div class="scroll" style="max-height:420px;overflow-y:auto"><table><thead><tr><th>Month</th><th class="num">Readings</th><th class="num">Days</th><th class="num">Blood pressure</th><th class="num">Pulse pressure</th><th class="num">Mean arterial</th><th class="num">Pulse</th><th class="num">At or above 135/85</th></tr></thead><tbody>${
+        mons.map(m=>`<tr><td>${esc(m.label)}</td><td class="num">${m.s.n}</td><td class="num">${m.days}</td><td class="num">${bpCell(m.s)}</td><td class="num">${r0(m.s.pp.mean)}</td><td class="num">${r0(m.s.map.mean)}</td><td class="num">${r0(m.s.hr.mean)}</td><td class="num">${Math.round(m.s.high/m.s.n*100)}%</td></tr>`).join('')
+      }</tbody></table></div>
+      <p class="note">Pulse pressure is systolic minus diastolic. Mean arterial pressure is estimated as diastolic plus one third of the pulse pressure. Months with few readings are less reliable.</p></section>`;
+    // time of day
+    const tod=PERIODS.map(([k,l,h])=>({k,l,h,s:summarize(list.filter(r=>period(r)===k))}));
+    const mo=tod[0].s, ev=tod[2].s;
+    let todNote='';
+    if(mo.n&&ev.n){ const ds=mo.sys.mean-ev.sys.mean, dd=mo.dia.mean-ev.dia.mean;
+      todNote = Math.abs(ds)<3&&Math.abs(dd)<3 ? 'Morning and evening averages are within 3 mmHg of each other.' :
+        `Morning average is ${Math.abs(Math.round(ds))}/${Math.abs(Math.round(dd))} mmHg ${ds>=0?'higher':'lower'} than evening.`; }
+    html+=`<div class="grid2"><section class="panel"><div class="panel-head"><h2>By time of day</h2></div><div class="tod">${tod.map(t=>`<div><span class="small muted">${t.l} · ${t.h}</span><b>${t.s.n?r0(t.s.sys.mean)+'/'+r0(t.s.dia.mean):'–'}</b><span class="small muted">${t.s.n?`pulse ${r0(t.s.hr.mean)} · ${t.s.n} readings`:'no readings'}</span></div>`).join('')}</div>${todNote?`<p class="note">${todNote}</p>`:''}</section>`;
+    // activity
+    const act=dl.filter(d=>d.activity), noact=dl.filter(d=>!d.activity);
+    html+=`<section class="panel"><div class="panel-head"><h2>Physical activity</h2><span class="small muted">${act.length} of ${dl.length} days active</span></div>${groupTable(activityGroups(list),'Reading taken')}<p class="note">Timing is counted from the activity time you entered. If a day has more than one activity time, the most recent one before the reading is used.</p></section></div>`;
+    // medication
+    html+=`<div class="grid2"><section class="panel"><div class="panel-head"><h2>Medicine</h2><span class="small muted">${list.filter(r=>r.med).length} readings with medicine taken</span></div>${groupTable(medGroups(list),'Group')}</section>`;
+    // weight
+    const wd=dl.filter(d=>d.weight!=null);
+    let wHtml='';
+    if(!wd.length) wHtml='<p class="muted">No weight recorded in this period. Add your weight to a reading to see how it relates to blood pressure.</p>';
+    else {
+      const ws=st(wd.map(d=>d.weight)), chg=wd[wd.length-1].weight-wd[0].weight;
+      const rS=pearson(wd.map(d=>d.weight),wd.map(d=>d.sys)), rD=pearson(wd.map(d=>d.weight),wd.map(d=>d.dia));
+      wHtml=`<p class="small">${wd.length} days with weight · average ${r1(ws.mean)} kg · change ${chg>=0?'+':''}${r1(chg)} kg</p>
+        <canvas id="wspark" class="spark" role="img" aria-label="Weight over time"></canvas>
+        <p class="small" style="margin-bottom:10px">Weight and systolic: ${describeR(rS)}. Weight and diastolic: ${describeR(rD)}.</p>
+        ${groupTable(weightBands(dl),'Weight')}`;
+    }
+    html+=`<section class="panel"><div class="panel-head"><h2>Weight</h2></div>${wHtml}</section></div>`;
+    // log
+    const rows=list.slice().reverse(); const shown=showAll?rows:rows.slice(0,40);
+    html+=`<section class="panel log"><div class="panel-head"><h2>Readings</h2><span class="small muted">${rows.length} in this period</span></div><div class="scroll"><table><thead><tr><th>Date</th><th>Time</th><th class="num">SYS/DIA</th><th class="num">Pulse</th><th>Type</th><th>Device</th><th class="num">Weight</th><th>Medicine</th><th>Activity</th><th></th></tr></thead><tbody>${
+      shown.map(r=>`<tr><td>${esc(fmtDayShort(r.dt))}</td><td>${r.dt.slice(11,16)}</td><td class="num"><span class="bp ${isHigh(r)?'flag':''}">${r.sys}/${r.dia}</span></td><td class="num">${r.hr??'–'}</td><td>${countLabel(r)}</td><td>${esc(r.device)||'–'}</td><td class="num">${r.weight!=null?r1(r.weight):'–'}</td><td>${r.med?esc(r.medicine||'Yes'):'–'}</td><td>${esc(actLabel(r))}</td><td><button class="btn link" data-edit="${r.id}">Edit</button><button class="btn link" data-del="${r.id}" style="color:var(--sys)">Delete</button></td></tr>`).join('')
+    }</tbody></table></div>${rows.length>40?`<p style="margin-top:10px"><button class="btn link" data-act="more">${showAll?'Show fewer':'Show all '+rows.length}</button></p>`:''}</section>`;
+  }
+  main.innerHTML=banner+html;
+  requestAnimationFrame(renderChart);
+}
+
+/* ---------- Period selection ---------- */
+const validDay=v=>/^\d{4}-\d{2}-\d{2}$/.test(v)&&+v.slice(0,4)>=1990&&+v.slice(0,4)<=2100;
+function applyRange(explicit){
+  const f=$('#fromIn').value, t=$('#toIn').value, errEl=$('#rangeErr');
+  // While a year is still being typed the value can be temporarily valid (e.g. 0002); wait for a real date.
+  if(!validDay(f)||!validDay(t)){ if(explicit) errEl.textContent='Enter both dates in full.'; return; }
+  if(f>t){ errEl.textContent='The start date is after the end date.'; return; }
+  errEl.textContent='';
+  if(f===state.from&&t===state.to&&!explicit) return;
+  state.from=f; state.to=t; render();
+}
+$('#applyRange').onclick=()=>applyRange(true);
+['fromIn','toIn'].forEach(id=>$('#'+id).addEventListener('keydown',e=>{ if(e.key==='Enter') applyRange(true); }));
+function syncRangebar(){
+  $('#rangebar').hidden=!state.readings.length;
+  document.querySelectorAll('#rangebar [data-range]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.range===state.range)));
+  $('#customWrap').hidden=state.range!=='custom';
+  if(state.range==='custom'&&document.activeElement!==$('#fromIn')&&document.activeElement!==$('#toIn')){ $('#fromIn').value=state.from; $('#toIn').value=state.to; }
+}
+
+/* ---------- Events ---------- */
+document.addEventListener('click', async e=>{
+  const t=e.target.closest('button'); if(!t) return;
+  if(t.dataset.range){
+    state.range=t.dataset.range;
+    if(state.range==='custom' && state.readings.length && (!state.from||!state.to)){
+      const last=state.readings[state.readings.length-1].dt.slice(0,10), d=dayDate(last); d.setDate(d.getDate()-29);
+      state.from=state.from||toDT(d).slice(0,10); state.to=state.to||last;
+      $('#fromIn').value=state.from; $('#toIn').value=state.to;
+    }
+    render(); return;
+  }
+  if(t.dataset.close!==undefined){ closeModal(t.closest('.modal').id); return; }
+  if(t.dataset.edit){ openForm(state.readings.find(r=>r.id===t.dataset.edit)); return; }
+  if(t.dataset.del){
+    const r=state.readings.find(x=>x.id===t.dataset.del); if(!r) return;
+    const ok=await ask('Delete reading',`Delete ${r.sys}/${r.dia} from ${fmtDay(r.dt)} at ${r.dt.slice(11,16)}?`,[{k:'no',t:'Cancel'},{k:'yes',t:'Delete reading',p:true}]);
+    if(ok==='yes'){ G.deleted.add(r.id); state.readings=state.readings.filter(x=>x!==r); persist(new Set([r.dt.slice(0,7)])); render(); toast('Reading deleted.'); }
+    return;
+  }
+  if(t.dataset.act==='gconnect') connectGoogle(); else if(t.dataset.act==='settings') $('#settingsBtn').click(); else if(t.dataset.act==='add') openForm(); else if(t.dataset.act==='import') openModal('importModal'); else if(t.dataset.act==='more'){ showAll=!showAll; render(); }
+});
+document.addEventListener('change', e=>{
+  if(e.target.id==='hrToggle'){ state.showHR=e.target.checked; renderChart(); }
+  if(e.target.id==='fromIn'||e.target.id==='toIn') applyRange(false);
+});
+const isChart=el=>el&&(el.id==='chart'||el.id==='chartDay');
+document.addEventListener('mousemove', e=>{ if(isChart(e.target)) chartHover(e,e.target.id); });
+document.addEventListener('mouseout', e=>{ if(isChart(e.target)){ const tip=$('#tip_'+e.target.id); if(tip) tip.style.display='none'; } });
+document.addEventListener('touchstart', e=>{ if(isChart(e.target)) chartHover(e.touches[0],e.target.id); },{passive:true});
+document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ const open=[...document.querySelectorAll('.modal:not([hidden])')].pop(); if(open){ if(open.id==='askModal') resolveAsk(null); else closeModal(open.id); } } });
+let rT; window.addEventListener('resize',()=>{ clearTimeout(rT); rT=setTimeout(renderChart,120); });
+try{ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',renderChart); }catch(e){}
+
+$('#addBtn').onclick=()=>openForm();
+$('#importBtn').onclick=()=>{ $('#importErr').textContent=''; $('#fileInput').value=''; openModal('importModal'); };
+$('#reportBtn').onclick=openReport;
+$('#settingsBtn').onclick=()=>{ updateSettingsUI(); renderDevManage(); renderMedManage(); openModal('settingsModal'); };
+$('#s_client').addEventListener('change',e=>{ const v=e.target.value.trim(); lsSet('bp.clientId',v); if(G.connected){ dropToken(); render(); } updateSettingsUI(); });
+$('#gConnect').onclick=()=>{ lsSet('bp.clientId',$('#s_client').value.trim()); if(state.mode!=='google'){ const g=document.querySelector('input[name=s_mode][value=google]'); g.checked=true; switchMode('google'); } else connectGoogle(); };
+$('#gDisconnect').onclick=disconnectGoogle;
+document.querySelectorAll('input[name=s_mode]').forEach(i=>i.addEventListener('change',()=>{ if(i.checked) switchMode(i.value); }));
+function syncSettingsRadios(){ document.querySelectorAll('input[name=s_mode]').forEach(i=>i.checked=(i.value===state.mode)); }
+
+/* ---------- Modals ---------- */
+let lastFocus=null;
+function openModal(id){ lastFocus=document.activeElement; const m=$('#'+id); m.hidden=false; document.body.classList.add('modal-open'); const f=m.querySelector('input:not([type=hidden]):not([type=radio]),select,textarea,button'); if(f) setTimeout(()=>f.focus(),20); }
+function closeModal(id){ $('#'+id).hidden=true; if(!document.querySelector('.modal:not([hidden])')) document.body.classList.remove('modal-open'); if(lastFocus&&lastFocus.focus) lastFocus.focus(); }
+document.querySelectorAll('.modal').forEach(m=>m.addEventListener('mousedown',e=>{ if(e.target===m){ if(m.id==='askModal') resolveAsk(null); else closeModal(m.id); } }));
+let askResolve=null;
+function ask(title,text,btns){
+  return new Promise(res=>{
+    askResolve=res; $('#askTitle').textContent=title; $('#askText').textContent=text;
+    const box=$('#askBtns'); box.innerHTML='';
+    btns.forEach(b=>{ const el=document.createElement('button'); el.className='btn'+(b.p?' primary':''); el.textContent=b.t; el.onclick=()=>resolveAsk(b.k); box.appendChild(el); });
+    openModal('askModal');
+  });
+}
+function resolveAsk(v){ closeModal('askModal'); if(askResolve){ const r=askResolve; askResolve=null; r(v); } }
+let toastT;
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastT); toastT=setTimeout(()=>t.style.display='none',4200); }
+
+/* ---------- Form ---------- */
+const DEFAULT_DEVICES=['Withings','Ada','Aktiia','Aktiia (b)','Farmacia Premuda','Medico','Omron'];
+function deviceNames(){ return Array.isArray(state.settings.devices)&&state.settings.devices.length ? state.settings.devices : DEFAULT_DEVICES.slice(); }
+function addDevice(name){
+  name=String(name||'').trim(); if(!name) return null;
+  const list=deviceNames(); const found=list.find(d=>d.toLowerCase()===name.toLowerCase());
+  if(found) return found;
+  state.settings.devices=[...list,name]; saveSettings(); return name;
+}
+function removeDevice(name){ state.settings.devices=deviceNames().filter(d=>d!==name); saveSettings(); }
+function fillDeviceSelect(current){
+  const list=deviceNames().slice(); if(current&&!list.includes(current)) list.push(current);
+  $('#f_device').innerHTML='<option value="">Not specified</option>'+list.map(d=>`<option value="${esc(d)}">${esc(d)}</option>`).join('')+'<option value="__new">Add a new device…</option>';
+  $('#f_device').value=current&&list.includes(current)?current:'';
+  $('#f_device').dataset.prev=$('#f_device').value;
+  $('#newDevWrap').style.display='none';
+}
+$('#f_device').addEventListener('change',e=>{
+  if(e.target.value==='__new'){ $('#newDevWrap').style.display='flex'; $('#f_newdev').value=''; $('#f_newdev').focus(); }
+  else { $('#newDevWrap').style.display='none'; e.target.dataset.prev=e.target.value; }
+});
+function addDevFromForm(){
+  const v=$('#f_newdev').value.trim(); if(!v){ $('#f_newdev').focus(); return; }
+  const n=addDevice(v); fillDeviceSelect(n); toast(`${n} added to your devices.`);
+}
+$('#addDevBtn').onclick=addDevFromForm;
+$('#f_newdev').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); addDevFromForm(); } });
+function renderDevManage(){
+  const list=deviceNames();
+  $('#devManage').innerHTML=list.map((d,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)"><span>${esc(d)}</span><button class="btn link" data-rmdev="${i}" style="color:var(--sys)">Remove</button></div>`).join('')||'<p class="small muted">No devices. Add one below.</p>';
+}
+$('#devManage').addEventListener('click',e=>{ const b=e.target.closest('[data-rmdev]'); if(!b) return; e.stopPropagation(); const name=deviceNames()[+b.dataset.rmdev]; removeDevice(name); renderDevManage(); toast(`${name} removed from the list. Existing readings keep it.`); });
+$('#s_addDev').onclick=()=>{ const v=$('#s_newdev').value.trim(); if(!v) return; const n=addDevice(v); $('#s_newdev').value=''; renderDevManage(); toast(`${n} is in your devices.`); };
+const splitMeds=s=>String(s||'').split(/\s*\+\s*/).map(x=>x.trim()).filter(Boolean);
+function medicineNames(){
+  if(Array.isArray(state.settings.medicines)) return state.settings.medicines;
+  const seen=[]; state.readings.forEach(r=>splitMeds(r.medicine).forEach(m=>{ if(!seen.some(x=>x.toLowerCase()===m.toLowerCase())) seen.push(m); })); return seen;
+}
+function addMedicine(name){
+  name=String(name||'').replace(/\+/g,' ').replace(/\s+/g,' ').trim(); if(!name) return null;
+  const list=medicineNames(); const found=list.find(d=>d.toLowerCase()===name.toLowerCase());
+  if(found) return found;
+  state.settings.medicines=[...list,name]; saveSettings(); return name;
+}
+function fillMedChecks(selected){
+  const list=medicineNames().slice(); selected.forEach(m=>{ if(!list.includes(m)) list.push(m); });
+  $('#medChecks').innerHTML=list.length ? list.map((m,i)=>`<label><input type="checkbox" value="${esc(m)}" ${selected.includes(m)?'checked':''}>${esc(m)}</label>`).join('') : '<span class="small muted">No medicines in your list yet. Add one below.</span>';
+}
+const selectedMeds=()=>[...document.querySelectorAll('#medChecks input:checked')].map(i=>i.value);
+function addMedFromForm(){
+  const v=$('#f_newmed').value.trim(); if(!v){ $('#f_newmed').focus(); return; }
+  const n=addMedicine(v); const sel=selectedMeds(); if(!sel.includes(n)) sel.push(n);
+  fillMedChecks(sel); $('#f_newmed').value=''; toast(`${n} added to your medicines.`);
+}
+$('#addMedBtn').onclick=addMedFromForm;
+$('#f_newmed').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); addMedFromForm(); } });
+function renderMedManage(){
+  const list=medicineNames();
+  $('#medManage').innerHTML=list.map((d,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)"><span>${esc(d)}</span><button class="btn link" data-rmmed="${i}" style="color:var(--sys)">Remove</button></div>`).join('')||'<p class="small muted">No medicines yet. Add one below.</p>';
+}
+$('#medManage').addEventListener('click',e=>{ const b=e.target.closest('[data-rmmed]'); if(!b) return; e.stopPropagation(); const name=medicineNames()[+b.dataset.rmmed]; state.settings.medicines=medicineNames().filter(m=>m!==name); saveSettings(); renderMedManage(); toast(`${name} removed from the list. Existing readings keep it.`); });
+$('#s_addMed').onclick=()=>{ const v=$('#s_newmed').value.trim(); if(!v) return; const n=addMedicine(v); $('#s_newmed').value=''; renderMedManage(); toast(`${n} is in your medicines.`); };
+function fillLists(){
+}
+function syncFormVis(){
+  $('#countWrap').style.display=$('#f_mode').value==='average'?'':'none';
+  $('#medWrap').style.display=$('#f_med').checked?'':'none';
+  $('#actWrap').style.display=$('#f_act').checked?'grid':'none';
+}
+['f_mode','f_med','f_act'].forEach(id=>$('#'+id).addEventListener('change',syncFormVis));
+$('#f_dt').addEventListener('change',()=>{ if(state.editing) return; prefillDay($('#f_dt').value.slice(0,10)); });
+function prefillDay(day){
+  const same=state.readings.filter(r=>r.dt.slice(0,10)===day);
+  const w=same.map(r=>r.weight).filter(v=>v!=null).pop();
+  if(w!=null && !$('#f_weight').value) $('#f_weight').value=w;
+  if(same.some(r=>r.activity)){ $('#f_act').checked=true; const n=same.map(r=>r.activityNote).filter(Boolean).pop(); if(n&&!$('#f_actnote').value) $('#f_actnote').value=n; const t=same.map(r=>r.activityTime).filter(Boolean).pop(); if(t&&!$('#f_acttime').value) $('#f_acttime').value=t; }
+  syncFormVis();
+}
+function openForm(r){
+  state.editing=r||null; fillLists(); $('#formErr').textContent='';
+  $('#formTitle').textContent=r?'Edit reading':'Add reading';
+  $('#saveReading').textContent=r?'Save changes':'Save reading';
+  const last=state.readings[state.readings.length-1];
+  const v=r||{dt:toDT(new Date()), sys:'', dia:'', hr:'', device:last?last.device:'', mode:last?last.mode:'single', count:last&&last.count>1?last.count:3, weight:'', med:last?last.med:false, medicine:last?last.medicine:'', activity:false, activityTime:'', activityNote:'', notes:''};
+  $('#f_dt').value=v.dt; $('#f_sys').value=v.sys; $('#f_dia').value=v.dia; $('#f_hr').value=v.hr??'';
+  fillDeviceSelect(v.device); $('#f_mode').value=v.mode; $('#f_count').value=v.count||3; $('#f_weight').value=v.weight??'';
+  $('#f_med').checked=!!v.med; fillMedChecks(splitMeds(v.medicine)); $('#f_newmed').value=''; $('#f_act').checked=!!v.activity; $('#f_acttime').value=v.activityTime||''; $('#f_actnote').value=v.activityNote; $('#f_notes').value=v.notes;
+  if(!r) prefillDay(v.dt.slice(0,10));
+  syncFormVis(); openModal('formModal');
+  setTimeout(()=>$(r?'#f_dt':'#f_sys').focus(),30);
+}
+$('#saveReading').onclick=()=>{
+  const g=id=>$('#'+id).value.trim();
+  const dt=g('f_dt'), sys=+g('f_sys'), dia=+g('f_dia'), hr=g('f_hr');
+  const err=m=>{ $('#formErr').textContent=m; };
+  if(!parseDT(dt)) return err('Enter the date and time of the reading.');
+  if($('#f_device').value==='__new') return err('Type the new device name and press Add device, or pick a device from the list.');
+  if(!sys||sys<60||sys>280) return err('Systolic should be between 60 and 280 mmHg.');
+  if(!dia||dia<30||dia>180) return err('Diastolic should be between 30 and 180 mmHg.');
+  if(dia>=sys) return err('Diastolic should be lower than systolic. Check the two values.');
+  if(hr && (+hr<30||+hr>220)) return err('Heart rate should be between 30 and 220 bpm, or left empty.');
+  if($('#f_newmed').value.trim()) return err('Press Add next to the new medicine name, or clear that box.');
+  const w=g('f_weight').replace(',','.'); if(w && (isNaN(+w)||+w<20||+w>300)) return err('Weight should be in kilograms, between 20 and 300.');
+  const rec=norm({id:state.editing?state.editing.id:undefined, dt:dt.slice(0,16), sys, dia, hr, device:($('#f_device').value==='__new'?'':$('#f_device').value), mode:$('#f_mode').value, count:g('f_count'), weight:w,
+    med:$('#f_med').checked, medicine:$('#f_med').checked?selectedMeds().join(' + '):'', activity:$('#f_act').checked, activityTime:$('#f_act').checked?$('#f_acttime').value:'', activityNote:$('#f_act').checked?g('f_actnote'):'', notes:g('f_notes')});
+  const months=new Set([rec.dt.slice(0,7)]);
+  if(state.editing){ months.add(state.editing.dt.slice(0,7)); const i=state.readings.indexOf(state.editing); state.readings[i]=rec; }
+  else state.readings.push(rec);
+  sortReadings(); persist(months); closeModal('formModal'); render();
+  toast(state.editing?'Changes saved.':'Reading saved.'); state.editing=null;
+};
+
+/* ---------- Import ---------- */
+function parseCSV(text){
+  text=text.replace(/^\uFEFF/,'');
+  const first=text.split(/\r?\n/)[0]||''; const cnt=ch=>(first.match(new RegExp('\\'+ch,'g'))||[]).length;
+  const delim = cnt('\t')>cnt(';')&&cnt('\t')>cnt(',') ? '\t' : cnt(';')>cnt(',') ? ';' : ',';
+  const rows=[]; let row=[], f='', q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){ f+='"'; i++; } else q=false; } else f+=c; }
+    else if(c==='"') q=true;
+    else if(c===delim){ row.push(f); f=''; }
+    else if(c==='\n'||c==='\r'){ if(c==='\r'&&text[i+1]==='\n') i++; row.push(f); rows.push(row); row=[]; f=''; }
+    else f+=c;
+  }
+  if(f!==''||row.length){ row.push(f); rows.push(row); }
+  return rows.filter(r=>r.some(x=>x.trim()!==''));
+}
+const ALIASES={
+  datetime:['datetime','date time','date and time','timestamp','data e ora','dataora'],
+  date:['date','data','day','giorno'], time:['time','ora','orario','hour'],
+  sys:['systolic','sys','sbp','systolic (mmhg)','sistolica','massima','max','pas'],
+  dia:['diastolic','dia','dbp','diastolic (mmhg)','diastolica','minima','min','pad'],
+  hr:['heart rate','hr','pulse','bpm','pulse (bpm)','heart rate (bpm)','frequenza','frequenza cardiaca','battiti','pulsazioni','fc'],
+  device:['device','dispositivo','apparecchio','strumento','monitor'],
+  mode:['measurement','type','mode','measurement type','tipo','misurazione'],
+  count:['count','measurements','number of measurements','n','numero','numero misurazioni'],
+  weight:['weight','weight (kg)','kg','peso','peso (kg)'],
+  med:['medicine taken','medication taken','med taken','medication','meds','taken','farmaco preso','farmaco assunto','terapia'],
+  medicine:['medicine','medicine name','drug','which medicine','farmaco','nome farmaco','medicinale'],
+  activity:['activity','physical activity','exercise','attività','attivita','attività fisica','sport'],
+  activityTime:['activity time','time of activity','exercise time','ora attività','ora attivita','ora esercizio'],
+  activityNote:['activity note','activity notes','activity details','dettagli attività'],
+  notes:['notes','note','comment','comments','commenti'],
+  id:['id']
+};
+const contentId=(dt,s,d,dev)=>{ let h=0; const str=dt+'|'+s+'|'+d+'|'+String(dev||'').toLowerCase(); for(let i=0;i<str.length;i++){ h=(h*31+str.charCodeAt(i))|0; } return 'c'+(h>>>0).toString(36)+dt.replace(/\D/g,''); };
+const truthy=v=>/^(y|yes|true|1|si|sì|x|✓|taken|preso)$/i.test(String(v).trim());
+function parseDateStr(ds, ts){
+  ds=String(ds||'').trim(); ts=String(ts||'').trim();
+  let y,m,d,h=0,mi=0, rest='';
+  let mm=/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(.*)$/.exec(ds);
+  if(mm){ y=+mm[1]; m=+mm[2]; d=+mm[3]; rest=mm[4]; }
+  else if((mm=/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})(.*)$/.exec(ds))){ let a=+mm[1], b=+mm[2]; y=+mm[3]; if(y<100) y+=2000; if(b>12&&a<=12){ m=a; d=b; } else { d=a; m=b; } rest=mm[4]; }
+  else return null;
+  const tm=/(\d{1,2})[:.](\d{2})/.exec(ts||rest);
+  if(tm){ h=+tm[1]; mi=+tm[2]; if(/pm/i.test(ts||rest)&&h<12) h+=12; if(/am/i.test(ts||rest)&&h===12) h=0; }
+  const dt=new Date(y,m-1,d,h,mi); if(isNaN(dt)||dt.getMonth()!==m-1) return null;
+  return toDT(dt);
+}
+function importRows(rows){
+  const head=rows[0].map(h=>h.trim().toLowerCase().replace(/\s+/g,' '));
+  const idx={}; Object.entries(ALIASES).forEach(([k,al])=>{ const i=head.findIndex(h=>al.includes(h)); if(i>=0) idx[k]=i; });
+  if(idx.date==null&&idx.datetime==null) throw new Error('No date column found. Name it "date" (and optionally "time").');
+  if(idx.sys==null||idx.dia==null) throw new Error('No systolic and diastolic columns found. Name them "systolic" and "diastolic".');
+  const out=[], bad=[];
+  rows.slice(1).forEach((row,i)=>{
+    const g=k=>idx[k]!=null?String(row[idx[k]]??'').trim():'';
+    const dt = idx.datetime!=null ? parseDateStr(g('datetime')) : parseDateStr(g('date'), g('time'));
+    const sys=+g('sys').replace(',','.'), dia=+g('dia').replace(',','.');
+    if(!dt||!sys||!dia){ bad.push(i+2); return; }
+    const modeRaw=g('mode').toLowerCase(), cm=/(\d+)/.exec(g('count')), cnt=cm?+cm[1]:null;   // accepts 3, 3x, x3, "3 volte"
+    const mode = cnt!=null ? (cnt>1?'average':'single')
+      : /avg|aver|media|multi|mean|\d+\s*x/.test(modeRaw) ? 'average' : 'single';
+    const medName=g('medicine'); const medFlag=g('med');
+    const mm=/(\d+)\s*x|x\s*(\d+)/.exec(modeRaw); const count = cnt || (mm?+(mm[1]||mm[2]):null);
+    out.push(norm({id:g('id')||contentId(dt,sys,dia,g('device')), dt, sys:Math.round(sys), dia:Math.round(dia), hr:g('hr')?Math.round(+g('hr').replace(',','.')):null, device:g('device'), mode, count,
+      weight:g('weight')?+g('weight').replace(',','.'):null,
+      med: medFlag? (truthy(medFlag) || (!/^(n|no|false|0)$/i.test(medFlag) && isNaN(+medFlag))) : !!medName,
+      medicine: medName || (medFlag && !truthy(medFlag) && !/^(n|no|false|0)$/i.test(medFlag) ? medFlag : ''),
+      activity: g('activity')? (truthy(g('activity')) || (!/^(n|no|false|0)$/i.test(g('activity')))) : !!g('activityNote'),
+      activityTime: g('activityTime'),
+      activityNote: g('activityNote') || (g('activity')&&!truthy(g('activity'))&&!/^(n|no|false|0)$/i.test(g('activity'))?g('activity'):''),
+      notes:g('notes')}));
+  });
+  return {out,bad};
+}
+$('#fileInput').addEventListener('change', async e=>{
+  const file=e.target.files[0]; if(!file) return; $('#importErr').textContent='';
+  try{
+    const text=await file.text(); let parsed, bad=[];
+    if(/\.json$/i.test(file.name) || /^\s*[\[{]/.test(text)){
+      const j=JSON.parse(text); const arr=Array.isArray(j)?j:(j.readings||[]);
+      parsed=[]; arr.forEach((r,i)=>{ if(r&&parseDT(r.dt)&&+r.sys&&+r.dia) parsed.push(norm(Object.assign({},r,{id:undefined}))); else bad.push(i+1); });
+    } else {
+      const rows=parseCSV(text); if(rows.length<2) throw new Error('The file has no data rows.');
+      const res=importRows(rows); parsed=res.out; bad=res.bad;
+    }
+    if(!parsed.length) throw new Error('No readable readings found. Check the column names and date format.');
+    const newDevs=[...new Set(parsed.map(r=>r.device).filter(Boolean))].filter(d=>!deviceNames().some(x=>x.toLowerCase()===d.toLowerCase()));
+    if(newDevs.length){ state.settings.devices=[...deviceNames(),...newDevs]; saveSettings(); }
+    if(Array.isArray(state.settings.medicines)){ const nm=[]; parsed.forEach(r=>splitMeds(r.medicine).forEach(m=>{ if(![...state.settings.medicines,...nm].some(x=>x.toLowerCase()===m.toLowerCase())) nm.push(m); })); if(nm.length){ state.settings.medicines=[...state.settings.medicines,...nm]; saveSettings(); } }
+    const fk=r=>`${r.dt}|${r.sys}|${r.dia}|${(r.device||'').toLowerCase()}`;
+    const uniq=new Map(); parsed.forEach(r=>uniq.set(fk(r),r)); const fileDup=parsed.length-uniq.size; parsed=[...uniq.values()];
+    const {list,added,dup,updated}=mergeReadings(state.readings, parsed, true);
+    const months=new Set(parsed.map(r=>r.dt.slice(0,7)));
+    state.readings=list; sortReadings(); persist(months);
+    closeModal('importModal'); state.range='all'; render();
+    toast(`Imported ${added} new reading${added===1?'':'s'}${updated?`, updated ${updated} already in the log`:''}${dup?`, ${dup} unchanged`:''}${fileDup?`, ${fileDup} repeated row${fileDup===1?'':'s'} in the file skipped`:''}${bad.length?`, ${bad.length} row${bad.length===1?'':'s'} unreadable (${bad.slice(0,5).join(', ')}${bad.length>5?'…':''})`:''}.`);
+  }catch(err){ $('#importErr').textContent=err.message||'Could not read this file.'; }
+});
+const CSV_HEAD=['date','time','systolic','diastolic','pulse','device','measurement','count','weight','medicine taken','medicine','activity','activity time','activity note','notes'];
+const csvCell=v=>{ const s=String(v??''); return /[",\n;]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
+function toCSV(list){ return [CSV_HEAD.join(',')].concat(list.map(r=>[r.dt.slice(0,10),r.dt.slice(11,16),r.sys,r.dia,r.hr??'',r.device,r.mode,r.mode==='average'?(r.count||''):1,r.weight??'',r.med?'yes':'no',r.medicine,r.activity?'yes':'no',r.activityTime||'',r.activityNote,r.notes].map(csvCell).join(','))).join('\n'); }
+async function offer(filename, data){
+  try{
+    const type=filename.endsWith('.pdf')?'application/pdf':filename.endsWith('.json')?'application/json':'text/csv';
+    const blob=data instanceof Blob?data:new Blob([data],{type});
+    const url=URL.createObjectURL(blob); const a=document.createElement('a');
+    a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),10000); return true;
+  }catch(e){ toast('Could not save the file.'); return false; }
+}
+const today=()=>toDT(new Date()).slice(0,10);
+$('#templateBtn').onclick=()=>offer('blood-pressure-template.csv', CSV_HEAD.join(',')+'\n2026-09-29,07:45,128,82,64,Omron M3 left arm,average,3,78.4,yes,Ramipril 5 mg,yes,08:15,40 min walk,\n');
+$('#exportCsv').onclick=()=>{ if(!state.readings.length) return toast('No readings to export yet.'); offer(`blood-pressure-${today()}.csv`, toCSV(state.readings)); };
+$('#exportJson').onclick=()=>{ if(!state.readings.length) return toast('No readings to export yet.'); offer(`blood-pressure-backup-${today()}.json`, JSON.stringify({app:'bp-log',version:1,exported:new Date().toISOString(),readings:state.readings},null,1)); };
+$('#wipeBtn').onclick=async()=>{
+  if(!state.readings.length) return toast('There are no readings to delete.');
+  const ok=await ask('Delete all readings',`This permanently deletes all ${state.readings.length} readings from ${state.mode==='google'?'your Google spreadsheet':'this device'}. Export a backup first if you might need them.`,[{k:'no',t:'Cancel'},{k:'yes',t:'Delete all readings',p:true}]);
+  if(ok!=='yes') return;
+  state.readings.forEach(r=>G.deleted.add(r.id)); const months=null; state.readings=[]; persist(months); closeModal('settingsModal'); render(); toast('All readings deleted.');
+};
+
+/* ---------- Report ---------- */
+function openReport(){
+  if(!state.readings.length){ toast('Add or import readings first.'); return; }
+  const s=state.settings; $('#r_name').value=s.patient||''; $('#r_dob').value=s.dob||''; $('#reportErr').textContent='';
+  const last=state.readings[state.readings.length-1].dt.slice(0,10);
+  if(!$('#r_to').value) $('#r_to').value=last;
+  if(!$('#r_from').value){ const d=dayDate($('#r_to').value); d.setDate(d.getDate()-29); $('#r_from').value=toDT(d).slice(0,10); }
+  periodInfo(); openModal('reportModal');
+}
+function periodInfo(){
+  const from=$('#r_from').value||null, to=$('#r_to').value||null;
+  const n=state.readings.filter(r=>inB(r,[from,to])).length;
+  $('#r_periodInfo').textContent = from&&to&&from>to ? 'The start date is after the end date.' : `${n} reading${n===1?'':'s'} in this period · ${state.readings.length} readings in all data`;
+}
+['r_from','r_to'].forEach(id=>$('#'+id).addEventListener('change',periodInfo));
+$('#makeReport').onclick=async()=>{
+  const err=m=>$('#reportErr').textContent=m;
+  if(!window.jspdf||!window.jspdf.jsPDF) return err('The PDF tool did not load. Check your connection and reload the page.');
+  const from=$('#r_from').value, to=$('#r_to').value;
+  if(!from||!to) return err('Choose the start and end date for section 2.');
+  if(from>to) return err('The start date is after the end date.');
+  const period=state.readings.filter(r=>inB(r,[from,to]));
+  if(!period.length) return err('There are no readings in that period. Choose other dates.');
+  state.settings.patient=$('#r_name').value.trim(); state.settings.dob=$('#r_dob').value; saveSettings();
+  const btn=$('#makeReport'); btn.disabled=true; btn.textContent='Creating…';
+  try{
+    const blob=buildPdf(state.readings.slice(), period, {patient:state.settings.patient,dob:state.settings.dob,from,to,notes:$('#r_notes').value.trim()});
+    const saved=await offer(`blood-pressure-report-${today()}.pdf`, blob);
+    if(saved){ closeModal('reportModal'); toast('Report downloaded.'); }
+  }catch(e){ err('Could not create the PDF: '+(e.message||e)); }
+  btn.disabled=false; btn.textContent='Create PDF';
+};
+
+function buildPdf(all, list, o){
+  const { jsPDF } = window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'a4'});
+  const M=16, PW=210, CW=PW-2*M, BOTTOM=280;
+  const INK=[22,35,58], MUTED=[95,105,120], LINE=[210,216,224];
+  let y=18;
+  const ensure=h=>{ if(y+h>BOTTOM){ doc.addPage(); y=18; } };
+  const font=(w,s,c)=>{ doc.setFont('helvetica',w); doc.setFontSize(s); doc.setTextColor(...(c||INK)); };
+  const h2=t=>{ ensure(20); y+=5; font('bold',12.5); doc.text(t,M,y); y+=2.2; doc.setDrawColor(...LINE); doc.setLineWidth(.3); doc.line(M,y,PW-M,y); y+=5.5; };
+  const para=(t,s=9.5,c)=>{ font('normal',s,c); const ls=doc.splitTextToSize(t,CW); ensure(ls.length*4.4); doc.text(ls,M,y); y+=ls.length*4.4+1; };
+  const table=(heads, rows, fr, al)=>{
+    const ws=fr.map(f=>f*CW), rh=6.4;
+    const head=()=>{ ensure(rh*2); doc.setFillColor(238,242,246); doc.rect(M,y,CW,rh,'F'); font('bold',8.3,MUTED); let x=M; heads.forEach((h,i)=>{ txt(h,x,ws[i],al[i]); x+=ws[i]; }); y+=rh; };
+    const txt=(s,x,w,a)=>{ s=String(s); while(s.length>1&&doc.getTextWidth(s)>w-3) s=s.slice(0,-2)+'…'; const ty=y+rh/2+1.1; if(a==='r') doc.text(s,x+w-1.5,ty,{align:'right'}); else doc.text(s,x+1.5,ty); };
+    head();
+    rows.forEach(r=>{
+      if(y+rh>BOTTOM){ doc.addPage(); y=18; head(); }
+      font(r.bold?'bold':'normal',8.6); let x=M; r.cells.forEach((c,i)=>{ if(r.hi&&r.hi[i]) doc.setTextColor(184,50,75); else doc.setTextColor(...INK); txt(c,x,ws[i],al[i]); x+=ws[i]; });
+      doc.setDrawColor(...LINE); doc.setLineWidth(.15); doc.line(M,y+rh,PW-M,y+rh); y+=rh;
+    });
+    y+=6;
+  };
+  const pct=s=>s.n?Math.round(s.high/s.n*100)+'%':'–';
+  const bp=s=>s.sys.n?`${r0(s.sys.mean)}/${r0(s.dia.mean)}`:'–';
+  const bpsd=s=>s.sys.n>1?`±${r0(s.sys.sd)}/±${r0(s.dia.sd)}`:'–';
+  const gRows=groups=>groups.map(g=>{ const s=summarize(g.list); return {cells:[(g.sub?'   ':'')+g.label, s.n, bp(s), bpsd(s), r0(s.hr.mean), pct(s)]}; });
+  const gHead=first=>[first,'Readings','Mean BP (mmHg)','SD','Pulse','>= 135/85'];
+  const gFr=[.36,.12,.17,.13,.1,.12], gAl=['l','r','r','r','r','r'];
+
+  const partTitle=(t,sub)=>{ ensure(30); y+=4; doc.setFillColor(31,78,140); doc.rect(M,y-5.5,2.2,sub?13:7.5,'F'); font('bold',15); doc.text(t,M+5,y); if(sub){ y+=6; font('normal',9.5,MUTED); doc.text(sub,M+5,y); } y+=6; };
+  const range=l=>`${numDate(l[0].dt)} to ${numDate(l[l.length-1].dt)}`;
+  const pdfColors={sys:'#B8324B',dia:'#2B7A8B',hr:'#A0701A',grid:'#DCE2EA',text:'#5A6678'};
+
+  function statsBlock(L, P, scope){
+    const S=summarize(L), dl=days(L);
+    h2(`${P}.1 Summary`);
+    table(['Measure','Mean','SD','Min','Max','Readings'],
+      [['Systolic (mmHg)',S.sys],['Diastolic (mmHg)',S.dia],['Pulse pressure (mmHg)',S.pp],['Mean arterial pressure (mmHg)',S.map],['Pulse (bpm)',S.hr]].map(([l,s])=>({cells:[l, s.n?r0(s.mean):'–', s.n>1?r1(s.sd):'–', s.n?r0(s.min):'–', s.n?r0(s.max):'–', s.n]})),
+      [.34,.13,.13,.13,.13,.14],['l','r','r','r','r','r']);
+    para(`Readings at or above 135/85 mmHg: ${S.high} of ${S.n} (${pct(S)}). ${S.n} readings on ${dl.length} days.`,9);
+    if(o.compare && o.compare!==L){
+      const A=summarize(o.compare), ds=S.sys.mean-A.sys.mean, dd=S.dia.mean-A.dia.mean, dh=S.hr.mean-A.hr.mean;
+      const sg=v=>(Math.round(v)>0?'+':'')+Math.round(v);
+      para(`Compared with all data (section 1): systolic ${sg(ds)} mmHg, diastolic ${sg(dd)} mmHg${A.hr.n&&S.hr.n?`, pulse ${sg(dh)} bpm`:''}; readings at or above 135/85: ${pct(S)} vs ${pct(A)}.`,9);
+    }
+
+    h2(`${P}.2 Progression`);
+    const rawPts=L.map(r=>({t:parseDT(r.dt).getTime(), sys:r.sys, dia:r.dia, hr:r.hr}));
+    const pdom=chartDomain(rawPts);
+    const chartImg=(pts,title)=>{
+      const cv=document.createElement('canvas'); const cw=1700, ch=520; cv.width=cw; cv.height=ch;
+      const cctx=cv.getContext('2d'); cctx.scale(2,2);
+      drawChart(cctx,cw/2,ch/2,pts,{colors:pdfColors,showHR:true,fill:'#FFFFFF',font:'13px Helvetica, Arial, sans-serif',dom:pdom});
+      const ih=CW*ch/cw; ensure(ih+14);
+      font('bold',10); doc.text(title,M,y); y+=3;
+      doc.addImage(cv.toDataURL('image/jpeg',0.92),'JPEG',M,y,CW,ih,undefined,'FAST'); y+=ih+4;
+    };
+    chartImg(rawPts,`Every reading (${L.length})`);
+    chartImg(dailyPts(dl),`Daily averages (${dl.length} days)`);
+    const lg=[['Systolic',[184,50,75]],['Diastolic',[43,122,139]],['Pulse (right axis)',[160,112,26]]]; let lx=M; font('normal',8.3,MUTED);
+    lg.forEach(([t,c])=>{ doc.setFillColor(...c); doc.rect(lx,y-1.6,5,1.4,'F'); doc.text(t,lx+6.5,y); lx+=doc.getTextWidth(t)+14; });
+    doc.text('Dashed lines: 135 and 85 mmHg. Both charts share the same scale.',lx,y); y+=6;
+
+    h2(`${P}.3 Monthly averages and trend`);
+    para(trendText(trend(L),true));
+    table(['Month','Readings','Days','Mean BP','SD','Pulse pr.','Mean art.','Pulse','>= 135/85'],
+      monthly(L).map(m=>({cells:[m.label,m.s.n,m.days,bp(m.s),bpsd(m.s),r0(m.s.pp.mean),r0(m.s.map.mean),r0(m.s.hr.mean),pct(m.s)]})),
+      [.14,.1,.07,.13,.13,.11,.11,.09,.12],['l','r','r','r','r','r','r','r','r']);
+    para('Pulse pressure = systolic minus diastolic. Mean arterial pressure = diastolic + one third of pulse pressure. The trend is a straight line through daily averages, so every day counts equally however many readings it has.',8.3,MUTED);
+
+    h2(`${P}.4 Blood pressure by time of day`);
+    table(gHead('Time of day'), gRows(PERIODS.map(([k,l,h])=>({label:`${l} (${h})`, list:L.filter(r=>period(r)===k)}))), gFr, gAl);
+    const mo=summarize(L.filter(r=>period(r)==='morning')), ev=summarize(L.filter(r=>period(r)==='evening'));
+    if(mo.n&&ev.n) para(`Morning minus evening difference: ${Math.round(mo.sys.mean-ev.sys.mean)>0?'+':''}${Math.round(mo.sys.mean-ev.sys.mean)}/${Math.round(mo.dia.mean-ev.dia.mean)>0?'+':''}${Math.round(mo.dia.mean-ev.dia.mean)} mmHg.`,8.8,MUTED);
+
+    h2(`${P}.5 Medication`);
+    table(gHead('Medicine'), gRows(medGroups(L)), gFr, gAl);
+    const meds=new Map(); L.filter(r=>r.med).forEach(r=>{ const k=r.medicine||'Not specified'; const d=r.dt.slice(0,10); const m=meds.get(k)||{first:d,last:d,days:new Set()}; if(d<m.first)m.first=d; if(d>m.last)m.last=d; m.days.add(d); meds.set(k,m); });
+    if(meds.size) table(['Medicine','First recorded','Last recorded','Days recorded'],[...meds].map(([k,m])=>({cells:[k,numDate(m.first),numDate(m.last),m.days.size]})),[.4,.2,.2,.2],['l','r','r','r']);
+    else para(`No medicine intake recorded in ${scope}.`,9,MUTED);
+
+    h2(`${P}.6 Weight`);
+    const wd=dl.filter(d=>d.weight!=null);
+    if(wd.length){
+      const ws=st(wd.map(d=>d.weight)), chg=wd[wd.length-1].weight-wd[0].weight;
+      para(`Weight recorded on ${wd.length} days. First ${r1(wd[0].weight)} kg (${numDate(wd[0].day)}), last ${r1(wd[wd.length-1].weight)} kg (${numDate(wd[wd.length-1].day)}), change ${chg>=0?'+':''}${r1(chg)} kg. Mean ${r1(ws.mean)} kg, range ${r1(ws.min)}–${r1(ws.max)} kg.`);
+      para(`Daily weight vs daily mean systolic: ${describeR(pearson(wd.map(d=>d.weight),wd.map(d=>d.sys)))}. Vs diastolic: ${describeR(pearson(wd.map(d=>d.weight),wd.map(d=>d.dia)))}. Correlation does not show cause and effect.`,8.8,MUTED);
+      table(gHead('Weight band'), gRows(weightBands(dl)), gFr, gAl);
+    } else para(`No weight recorded in ${scope}.`,9,MUTED);
+
+    h2(`${P}.7 Physical activity`);
+    const act=dl.filter(d=>d.activity), noact=dl.filter(d=>!d.activity);
+    para(`Activity recorded on ${act.length} of ${dl.length} days. Readings are grouped by when they were taken relative to that day's activity time.`);
+    table(gHead('Reading taken'), gRows(activityGroups(L)), gFr, gAl);
+
+    h2(`${P}.8 Devices and measurement method`);
+    const dev=new Map(); L.forEach(r=>{ const k=r.device||'Not specified'; if(!dev.has(k)) dev.set(k,[]); dev.get(k).push(r); });
+    table(gHead('Device'), gRows([...dev].map(([k,l])=>({label:k,list:l}))), gFr, gAl);
+    table(gHead('Method'), gRows([{label:'Single measurement',list:L.filter(r=>r.mode==='single')},{label:'Average of several measurements',list:L.filter(r=>r.mode==='average')}]), gFr, gAl);
+  }
+
+  // Title block
+  font('bold',18); doc.text('Home blood pressure report',M,y); y+=7;
+  font('normal',9.5,MUTED); doc.text('Patient-recorded home measurements',M,y); y+=8;
+  const info=[['Patient',o.patient||'Not given'],['Date of birth',o.dob?numDate(o.dob):'Not given'],['Report created',numDate(today())],
+    ['Section 1',`All data: ${range(all)}, ${all.length} readings`],
+    ['Section 2',`Selected period: ${numDate(o.from)} to ${numDate(o.to)}, ${list.length} readings, with every reading listed`]];
+  info.forEach(([k,v])=>{ font('bold',9.5); doc.text(k,M,y); font('normal',9.5); const ls=doc.splitTextToSize(String(v),CW-34); doc.text(ls,M+34,y); y+=5.2*ls.length; });
+  y+=1;
+  para('Reference: 135/85 mmHg is the home blood pressure threshold used in the European Society of Hypertension guidelines. A reading entered as the average of several measurements taken in a row counts as one reading. SD = standard deviation.',8.5,MUTED);
+  if(o.notes){ h2('Notes from the patient'); para(o.notes); }
+
+  // Section 1
+  y+=2; partTitle('Section 1. All data', `${range(all)} · ${all.length} readings on ${days(all).length} days`);
+  statsBlock(all,'1','the data');
+
+  // Section 2
+  doc.addPage(); y=18;
+  partTitle('Section 2. Selected period', `${numDate(o.from)} to ${numDate(o.to)} · ${list.length} readings on ${days(list).length} days`);
+  o.compare=all;
+  statsBlock(list,'2','this period');
+
+  h2(`2.9 All readings in the period (${list.length})`);
+  table(['Date','Time','SYS','DIA','Pulse','Type','Device','Kg','Medicine','Activity'],
+    list.map(r=>({cells:[numDate(r.dt),r.dt.slice(11,16),r.sys,r.dia,r.hr??'–',countLabel(r,true),r.device||'–',r.weight!=null?r1(r.weight):'–',r.med?(r.medicine||'Yes'):'–',actLabel(r)], hi:[0,0,r.sys>=135,r.dia>=85]})),
+    [.12,.07,.06,.06,.07,.08,.17,.07,.18,.12],['l','l','r','r','r','l','l','r','l','l']);
+  para('Values at or above 135 systolic or 85 diastolic are shown in red.',8.3,MUTED);
+  const withNotes=list.filter(r=>r.notes);
+  if(withNotes.length){
+    h2('2.10 Notes recorded with readings');
+    table(['Date','Time','Reading','Note'], withNotes.map(r=>({cells:[numDate(r.dt),r.dt.slice(11,16),`${r.sys}/${r.dia}`,r.notes]})),[.14,.09,.12,.65],['l','l','r','l']);
+  }
+  const n=doc.getNumberOfPages();
+  for(let i=1;i<=n;i++){ doc.setPage(i); font('normal',7.8,MUTED); doc.text(`Home blood pressure report${o.patient?' – '+o.patient:''}`,M,290); doc.text(`Page ${i} of ${n}`,PW-M,290,{align:'right'}); }
+  return doc.output('blob');
+}
+
+/* ---------- Start ---------- */
+if(state.mode==='local'){ state.readings=loadLocal(); sortReadings(); render(); }
+else if(G.token){ connectGoogle(); }
+else render();
+})();
+</script>
+</body>
+</html>
