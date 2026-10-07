@@ -544,8 +544,9 @@ function st(arr){
   return {n,mean,sd,min:Math.min(...v),max:Math.max(...v)};
 }
 const isHigh = r => r.sys>=135 || r.dia>=85;
+const pctOf=(k,n)=>n?Math.round(k/n*100)+'%':'–';
 const ppOf=r=>r.sys-r.dia, mapOf=r=>r.dia+(r.sys-r.dia)/3;
-function summarize(list){ return {n:list.length, sys:st(list.map(r=>r.sys)), dia:st(list.map(r=>r.dia)), hr:st(list.map(r=>r.hr)), pp:st(list.map(ppOf)), map:st(list.map(mapOf)), high:list.filter(isHigh).length}; }
+function summarize(list){ return {n:list.length, sys:st(list.map(r=>r.sys)), dia:st(list.map(r=>r.dia)), hr:st(list.map(r=>r.hr)), pp:st(list.map(ppOf)), map:st(list.map(mapOf)), high:list.filter(isHigh).length, hiS:list.filter(r=>r.sys>=135).length, hiD:list.filter(r=>r.dia>=85).length}; }
 function monthly(list){
   const m=new Map(); list.forEach(r=>{ const k=r.dt.slice(0,7); if(!m.has(k)) m.set(k,[]); m.get(k).push(r); });
   return [...m].sort((a,b)=>a[0]<b[0]?-1:1).map(([k,rs])=>({month:k, label:dayDate(k+'-01').toLocaleDateString('en-GB',{month:'short',year:'numeric'}), s:summarize(rs), days:new Set(rs.map(r=>r.dt.slice(0,10))).size}));
@@ -726,8 +727,8 @@ function chartHover(e, id){
 /* ---------- Rendering ---------- */
 function bpCell(s){ if(!s.sys.n) return '–'; return `<span class="bp">${r0(s.sys.mean)}/${r0(s.dia.mean)}<span class="sd">±${r0(s.sys.sd)}/${r0(s.dia.sd)}</span></span>`; }
 function groupTable(groups, firstHead){
-  return `<div class="scroll"><table><thead><tr><th>${firstHead}</th><th class="num">Readings</th><th class="num">Blood pressure</th><th class="num">Pulse</th><th class="num">At or above 135/85</th></tr></thead><tbody>${
-    groups.map(g=>{ const s=summarize(g.list); return `<tr><td${g.sub?' style="padding-left:20px"':''}>${esc(g.label)}</td><td class="num">${s.n}</td><td class="num">${bpCell(s)}</td><td class="num">${r0(s.hr.mean)}</td><td class="num">${s.n?Math.round(s.high/s.n*100)+'%':'–'}</td></tr>`; }).join('')
+  return `<div class="scroll"><table><thead><tr><th>${firstHead}</th><th class="num">Readings</th><th class="num">Blood pressure</th><th class="num">Pulse</th><th class="num">SYS ≥ 135</th><th class="num">DIA ≥ 85</th></tr></thead><tbody>${
+    groups.map(g=>{ const s=summarize(g.list); return `<tr><td${g.sub?' style="padding-left:20px"':''}>${esc(g.label)}</td><td class="num">${s.n}</td><td class="num">${bpCell(s)}</td><td class="num">${r0(s.hr.mean)}</td><td class="num">${pctOf(s.hiS,s.n)}</td><td class="num">${pctOf(s.hiD,s.n)}</td></tr>`; }).join('')
   }</tbody></table></div>`;
 }
 let showAll=false;
@@ -778,8 +779,8 @@ function render(){
     const mons=monthly(list).reverse();
     html+=`<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Monthly averages and trend</h2><span class="small muted">${mons.length} month${mons.length===1?'':'s'}</span></div>
       <p style="margin-bottom:12px">${esc(trendText(trend(list)))}</p>
-      <div class="scroll" style="max-height:420px;overflow-y:auto"><table><thead><tr><th>Month</th><th class="num">Readings</th><th class="num">Days</th><th class="num">Blood pressure</th><th class="num">Pulse pressure</th><th class="num">Mean arterial</th><th class="num">Pulse</th><th class="num">At or above 135/85</th></tr></thead><tbody>${
-        mons.map(m=>`<tr><td>${esc(m.label)}</td><td class="num">${m.s.n}</td><td class="num">${m.days}</td><td class="num">${bpCell(m.s)}</td><td class="num">${r0(m.s.pp.mean)}</td><td class="num">${r0(m.s.map.mean)}</td><td class="num">${r0(m.s.hr.mean)}</td><td class="num">${Math.round(m.s.high/m.s.n*100)}%</td></tr>`).join('')
+      <div class="scroll" style="max-height:420px;overflow-y:auto"><table><thead><tr><th>Month</th><th class="num">Readings</th><th class="num">Days</th><th class="num">Blood pressure</th><th class="num">Pulse pressure</th><th class="num">Mean arterial</th><th class="num">Pulse</th><th class="num">SYS ≥ 135</th><th class="num">DIA ≥ 85</th></tr></thead><tbody>${
+        mons.map(m=>`<tr><td>${esc(m.label)}</td><td class="num">${m.s.n}</td><td class="num">${m.days}</td><td class="num">${bpCell(m.s)}</td><td class="num">${r0(m.s.pp.mean)}</td><td class="num">${r0(m.s.map.mean)}</td><td class="num">${r0(m.s.hr.mean)}</td><td class="num">${pctOf(m.s.hiS,m.s.n)}</td><td class="num">${pctOf(m.s.hiD,m.s.n)}</td></tr>`).join('')
       }</tbody></table></div>
       <p class="note">Pulse pressure is systolic minus diastolic. Mean arterial pressure is estimated as diastolic plus one third of the pulse pressure. Months with few readings are less reliable.</p></section>`;
     // time of day
@@ -1193,9 +1194,9 @@ function buildPdf(all, list, o){
   const pct=s=>s.n?Math.round(s.high/s.n*100)+'%':'–';
   const bp=s=>s.sys.n?`${r0(s.sys.mean)}/${r0(s.dia.mean)}`:'–';
   const bpsd=s=>s.sys.n>1?`±${r0(s.sys.sd)}/±${r0(s.dia.sd)}`:'–';
-  const gRows=groups=>groups.map(g=>{ const s=summarize(g.list); return {cells:[(g.sub?'   ':'')+g.label, s.n, bp(s), bpsd(s), r0(s.hr.mean), pct(s)]}; });
-  const gHead=first=>[first,'Readings','Mean BP (mmHg)','SD','Pulse','>= 135/85'];
-  const gFr=[.36,.12,.17,.13,.1,.12], gAl=['l','r','r','r','r','r'];
+  const gRows=groups=>groups.map(g=>{ const s=summarize(g.list); return {cells:[(g.sub?'   ':'')+g.label, s.n, bp(s), bpsd(s), r0(s.hr.mean), pctOf(s.hiS,s.n), pctOf(s.hiD,s.n)]}; });
+  const gHead=first=>[first,'Readings','Mean BP (mmHg)','SD','Pulse','SYS >= 135','DIA >= 85'];
+  const gFr=[.31,.11,.16,.12,.08,.11,.11], gAl=['l','r','r','r','r','r','r'];
 
   const partTitle=(t,sub)=>{ ensure(30); y+=4; doc.setFillColor(31,78,140); doc.rect(M,y-5.5,2.2,sub?13:7.5,'F'); font('bold',15); doc.text(t,M+5,y); if(sub){ y+=6; font('normal',9.5,MUTED); doc.text(sub,M+5,y); } y+=6; };
   const range=l=>`${numDate(l[0].dt)} to ${numDate(l[l.length-1].dt)}`;
@@ -1207,11 +1208,11 @@ function buildPdf(all, list, o){
     table(['Measure','Mean','SD','Min','Max','Readings'],
       [['Systolic (mmHg)',S.sys],['Diastolic (mmHg)',S.dia],['Pulse pressure (mmHg)',S.pp],['Mean arterial pressure (mmHg)',S.map],['Pulse (bpm)',S.hr]].map(([l,s])=>({cells:[l, s.n?r0(s.mean):'–', s.n>1?r1(s.sd):'–', s.n?r0(s.min):'–', s.n?r0(s.max):'–', s.n]})),
       [.34,.13,.13,.13,.13,.14],['l','r','r','r','r','r']);
-    para(`Readings at or above 135/85 mmHg: ${S.high} of ${S.n} (${pct(S)}). ${S.n} readings on ${dl.length} days.`,9);
+    para(`Readings at or above 135/85 mmHg: ${S.high} of ${S.n} (${pct(S)}). Systolic at or above 135: ${S.hiS} (${pctOf(S.hiS,S.n)}); diastolic at or above 85: ${S.hiD} (${pctOf(S.hiD,S.n)}). ${S.n} readings on ${dl.length} days.`,9);
     if(o.compare && o.compare!==L){
       const A=summarize(o.compare), ds=S.sys.mean-A.sys.mean, dd=S.dia.mean-A.dia.mean, dh=S.hr.mean-A.hr.mean;
       const sg=v=>(Math.round(v)>0?'+':'')+Math.round(v);
-      para(`Compared with all data (section 1): systolic ${sg(ds)} mmHg, diastolic ${sg(dd)} mmHg${A.hr.n&&S.hr.n?`, pulse ${sg(dh)} bpm`:''}; readings at or above 135/85: ${pct(S)} vs ${pct(A)}.`,9);
+      para(`Compared with all data (section 1): systolic ${sg(ds)} mmHg, diastolic ${sg(dd)} mmHg${A.hr.n&&S.hr.n?`, pulse ${sg(dh)} bpm`:''}; systolic at or above 135: ${pctOf(S.hiS,S.n)} vs ${pctOf(A.hiS,A.n)}; diastolic at or above 85: ${pctOf(S.hiD,S.n)} vs ${pctOf(A.hiD,A.n)}.`,9);
     }
 
     h2(`${P}.2 Progression`);
@@ -1233,9 +1234,9 @@ function buildPdf(all, list, o){
 
     h2(`${P}.3 Monthly averages and trend`);
     para(trendText(trend(L),true));
-    table(['Month','Readings','Days','Mean BP','SD','Pulse pr.','Mean art.','Pulse','>= 135/85'],
-      monthly(L).map(m=>({cells:[m.label,m.s.n,m.days,bp(m.s),bpsd(m.s),r0(m.s.pp.mean),r0(m.s.map.mean),r0(m.s.hr.mean),pct(m.s)]})),
-      [.14,.1,.07,.13,.13,.11,.11,.09,.12],['l','r','r','r','r','r','r','r','r']);
+    table(['Month','Readings','Days','Mean BP','SD','Pulse pr.','Mean art.','Pulse','SYS >= 135','DIA >= 85'],
+      monthly(L).map(m=>({cells:[m.label,m.s.n,m.days,bp(m.s),bpsd(m.s),r0(m.s.pp.mean),r0(m.s.map.mean),r0(m.s.hr.mean),pctOf(m.s.hiS,m.s.n),pctOf(m.s.hiD,m.s.n)]})),
+      [.11,.1,.06,.11,.11,.1,.1,.08,.115,.115],['l','r','r','r','r','r','r','r','r','r']);
     para('Pulse pressure = systolic minus diastolic. Mean arterial pressure = diastolic + one third of pulse pressure. The trend is a straight line through daily averages, so every day counts equally however many readings it has.',8.3,MUTED);
 
     h2(`${P}.4 Blood pressure by time of day`);
@@ -1277,7 +1278,7 @@ function buildPdf(all, list, o){
     ['Section 2',`Selected period: ${numDate(o.from)} to ${numDate(o.to)}, ${list.length} readings, with every reading listed`]];
   info.forEach(([k,v])=>{ font('bold',9.5); doc.text(k,M,y); font('normal',9.5); const ls=doc.splitTextToSize(String(v),CW-34); doc.text(ls,M+34,y); y+=5.2*ls.length; });
   y+=1;
-  para('Reference: 135/85 mmHg is the home blood pressure threshold used in the European Society of Hypertension guidelines. A reading entered as the average of several measurements taken in a row counts as one reading. SD = standard deviation.',8.5,MUTED);
+  para('Reference: 135/85 mmHg is the home blood pressure threshold used in the European Society of Hypertension guidelines. A reading entered as the average of several measurements taken in a row counts as one reading. SD = standard deviation. The SYS >= 135 and DIA >= 85 columns give the share of readings with systolic at or above 135 and with diastolic at or above 85; a reading can count in both.',8.5,MUTED);
   if(o.notes){ h2('Notes from the patient'); para(o.notes); }
 
   // Section 1
