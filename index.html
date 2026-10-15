@@ -113,6 +113,11 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .empty .actions{justify-content:center;margin-top:16px}
 .log{margin-top:18px}
 .flag{color:var(--sys);font-weight:600}
+.big{font-family:var(--serif);font-size:2.4rem;font-weight:600;line-height:1.1;margin:2px 0}
+.big small{font-family:var(--sans);font-size:.85rem;font-weight:400;color:var(--muted)}
+.bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--soft);margin-top:10px}
+.bar span{display:block;height:100%}
+.chartbox.sm{height:220px}
 
 /* Modal */
 .modal{position:fixed;inset:0;background:rgba(8,15,28,.5);display:grid;place-items:center;padding:16px;padding-top:calc(16px + env(safe-area-inset-top,0px));padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:50}
@@ -141,6 +146,7 @@ legend{padding:0 6px;font-weight:600;font-size:.9rem}
   .hero{grid-template-columns:1fr;gap:18px}
   .grid2{grid-template-columns:1fr}
   .chartbox{height:260px}
+  .chartbox.sm{height:190px}
   .form{grid-template-columns:1fr}
   .tod b{font-size:1.35rem}
 }
@@ -159,7 +165,7 @@ legend{padding:0 6px;font-weight:600;font-size:.9rem}
       <button class="btn primary" id="addBtn">Add reading</button>
       <button class="btn" id="importBtn">Import file</button>
       <button class="btn" id="reportBtn">Doctor report (PDF)</button>
-      <button class="btn" id="settingsBtn">Storage and export</button>
+      <button class="btn" id="settingsBtn">Settings and export</button>
     </div>
   </header>
 
@@ -174,7 +180,7 @@ legend{padding:0 6px;font-weight:600;font-size:.9rem}
     </div>
   </div>
   <main id="main"></main>
-  <p class="small muted" style="margin-top:48px;text-align:center">Blood pressure log · version 30 Sep 2026 (7)</p>
+  <p class="small muted" style="margin-top:48px;text-align:center">Blood pressure log · version 15 Oct 2026 (8)</p>
 </div>
 
 <!-- Reading form -->
@@ -200,10 +206,9 @@ legend{padding:0 6px;font-weight:600;font-size:.9rem}
         <div class="checks" id="medChecks"></div>
         <div style="display:flex;gap:8px"><input type="text" id="f_newmed" placeholder="Add a new medicine, e.g. Ramipril 5 mg" style="flex:1;min-width:0" aria-label="New medicine name"><button class="btn" id="addMedBtn" type="button">Add</button></div>
       </div>
-      <label class="check full"><input type="checkbox" id="f_act"> Physical activity today</label>
-      <div class="full" id="actWrap" style="grid-template-columns:130px minmax(0,1fr);gap:12px">
-        <label>Time of activity<input type="time" id="f_acttime"></label>
-        <label>What (optional)<input type="text" id="f_actnote" placeholder="e.g. 40 min brisk walk"></label>
+      <label class="check full"><input type="checkbox" id="f_act"> Physical activity yesterday</label>
+      <div class="full" id="actWrap">
+        <label>What did you do yesterday? (optional)<input type="text" id="f_actnote" placeholder="e.g. 40 min brisk walk"></label>
       </div>
       <label class="full">Notes (optional)<textarea id="f_notes" rows="2"></textarea></label>
     </div>
@@ -220,7 +225,7 @@ legend{padding:0 6px;font-weight:600;font-size:.9rem}
 <div class="modal" id="importModal" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="importTitle">
     <h2 id="importTitle">Import past readings</h2>
-    <p class="small">Load a CSV (from Excel, Google Sheets, or a device app) or a JSON backup from this dashboard. Columns are matched by name, in English or Italian: date, time, systolic, diastolic, pulse, device, measurement, count, weight, medicine taken, medicine, activity, notes. Dates like 29/09/2026 are read day first.</p>
+    <p class="small">Load a CSV (from Excel, Google Sheets, or a device app) or a JSON backup from this dashboard. Columns are matched by name, in English or Italian: date, time, systolic, diastolic, pulse, device, measurement, count, weight, medicine taken, medicine, activity yesterday, activity yesterday note, notes. Dates like 29/09/2026 are read day first.</p>
     <div class="row-end" style="justify-content:flex-start">
       <input type="file" id="fileInput" accept=".csv,.json,.txt,.tsv">
     </div>
@@ -265,7 +270,7 @@ legend{padding:0 6px;font-weight:600;font-size:.9rem}
 <!-- Settings -->
 <div class="modal" id="settingsModal" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-    <h2 id="settingsTitle">Storage and export</h2>
+    <h2 id="settingsTitle">Settings and export</h2>
     <fieldset>
       <legend>Where your readings are saved</legend>
       <label class="radio"><input type="radio" name="s_mode" value="local"><span>This device only<small>Saved in this browser on this device. Nothing leaves the device; export a backup now and then.</small></span></label>
@@ -296,6 +301,15 @@ legend{padding:0 6px;font-weight:600;font-size:.9rem}
         <input type="text" id="s_newdev" placeholder="New device name" style="flex:1;min-width:160px" aria-label="New device name">
         <button class="btn" id="s_addDev">Add device</button>
       </div>
+    </fieldset>
+    <fieldset>
+      <legend>Blood pressure target</legend>
+      <p class="small muted" style="margin-bottom:10px">Used for time in target range: a day is in target when its average is below both values. 135/85 is the standard home threshold; your doctor may set a lower target.</p>
+      <div class="form">
+        <label>Systolic below (mmHg)<input type="number" id="s_tsys" min="90" max="200" inputmode="numeric"></label>
+        <label>Diastolic below (mmHg)<input type="number" id="s_tdia" min="50" max="130" inputmode="numeric"></label>
+      </div>
+      <p class="err" id="targetErr"></p>
     </fieldset>
     <fieldset>
       <legend>Export</legend>
@@ -350,12 +364,15 @@ const state = {
 };
 
 function normTime(v){ const m=/^(\d{1,2})[:.](\d{2})/.exec(String(v||'').trim()); return m&&+m[1]<24&&+m[2]<60?`${pad(+m[1])}:${m[2]}`:''; }
+// yes / no / not answered (null: reading saved before the "activity yesterday" option existed)
+function triState(v){ if(v===true||v===false) return v; if(v==null) return null; const t=String(v).trim(); if(!t) return null; return !/^(n|no|false|0|non?)$/i.test(t); }
 function norm(r){
   const num = v => (v==null||v===''||isNaN(+v)) ? null : +v;
   const mode = r.mode==='average'?'average':'single';
   return { id:r.id||newId(), dt:r.dt, sys:+r.sys, dia:+r.dia, hr:num(r.hr),
     device:String(r.device||'').trim(), mode, count: mode==='average'?(num(r.count)||null):1,
     weight:num(r.weight), med:!!r.med, medicine:String(r.medicine||'').trim(),
+    actPrev:triState(r.actPrev), actPrevNote:String(r.actPrevNote||'').trim(),
     activity:!!r.activity, activityTime:normTime(r.activityTime), activityNote:String(r.activityNote||'').trim(), notes:String(r.notes||'').trim() };
 }
 const sortReadings = () => state.readings.sort((a,b)=> a.dt<b.dt?-1:a.dt>b.dt?1:0);
@@ -374,7 +391,7 @@ const G={ token:null, exp:0, sheetId:lsGet('bp.sheetId')||'', connected:false, l
 const clientId=()=>(lsGet('bp.clientId')||DEFAULT_CLIENT_ID||'').trim();
 try{ const t=JSON.parse(sessionStorage.getItem('bp.gtoken')||'null'); if(t&&t.exp>Date.now()+120000){ G.token=t.token; G.exp=t.exp; } }catch(e){}
 const headRow=()=>['id',...CSV_HEAD];
-const rowOf=r=>[r.id,r.dt.slice(0,10),r.dt.slice(11,16),r.sys,r.dia,r.hr??'',r.device,r.mode,r.mode==='average'?(r.count||''):1,r.weight??'',r.med?'yes':'no',r.medicine,r.activity?'yes':'no',r.activityTime||'',r.activityNote,r.notes];
+const rowOf=r=>[r.id,r.dt.slice(0,10),r.dt.slice(11,16),r.sys,r.dia,r.hr??'',r.device,r.mode,r.mode==='average'?(r.count||''):1,r.weight??'',r.med?'yes':'no',r.medicine,r.actPrev==null?'':r.actPrev?'yes':'no',r.actPrevNote,r.activity?'yes':'no',r.activityTime||'',r.activityNote,r.notes];
 
 function waitGIS(){ return new Promise((res,rej)=>{ let n=0; (function chk(){ if(window.google&&google.accounts&&google.accounts.oauth2) return res(); if(++n>100) return rej(new Error('Google sign-in did not load. Check your connection and reload.')); setTimeout(chk,100); })(); }); }
 async function getToken(){
@@ -420,10 +437,10 @@ async function ensureSheet(){
 }
 async function readSheet(){
   const id=await ensureSheet();
-  const r=await gFetch(`${SHEETS}/${id}/values/${rng('Readings!A1:P')}`);
+  const r=await gFetch(`${SHEETS}/${id}/values/${rng('Readings!A1:R')}`);
   try{
     const st=await gFetch(`${SHEETS}/${id}/values/${rng('Settings!A1:B10')}`);
-    (st.values||[]).forEach(([k,v])=>{ if(k==='patient') state.settings.patient=v||''; if(k==='dob') state.settings.dob=v||''; if(k==='medicines'&&v) state.settings.medicines=String(v).split('|').map(x=>x.trim()).filter(Boolean); if(k==='devices'&&v) state.settings.devices=String(v).split('|').map(x=>x.trim()).filter(Boolean); });
+    (st.values||[]).forEach(([k,v])=>{ if(k==='patient') state.settings.patient=v||''; if(k==='dob') state.settings.dob=v||''; if(k==='medicines'&&v) state.settings.medicines=String(v).split('|').map(x=>x.trim()).filter(Boolean); if(k==='devices'&&v) state.settings.devices=String(v).split('|').map(x=>x.trim()).filter(Boolean); if(k==='target'&&v){ const m=/(\d+)\s*\/\s*(\d+)/.exec(v); if(m) state.settings.target={sys:+m[1],dia:+m[2]}; } });
   }catch(e){ if(e.code==='auth') throw e; }
   const rows=(r.values||[]).map(row=>row.map(c=>String(c??'')));
   if(rows.length<2) return [];
@@ -435,7 +452,7 @@ async function writeSheet(){
   const have=new Set(state.readings.map(r=>r.id)); let pulled=0;
   remote.forEach(r=>{ if(!have.has(r.id)&&!G.deleted.has(r.id)){ state.readings.push(r); pulled++; } });
   if(pulled) sortReadings();
-  await gFetch(`${SHEETS}/${id}/values/${rng('Readings!A:P')}:clear`,{method:'POST',body:'{}'});
+  await gFetch(`${SHEETS}/${id}/values/${rng('Readings!A:R')}:clear`,{method:'POST',body:'{}'});
   await gFetch(`${SHEETS}/${id}/values/${rng('Readings!A1')}?valueInputOption=RAW`,{method:'PUT',body:JSON.stringify({values:[headRow(),...state.readings.map(rowOf)]})});
   return pulled;
 }
@@ -486,7 +503,7 @@ function persist(){
 function saveSettings(){
   lsSet(LS_SET, JSON.stringify(state.settings));
   if(state.mode==='google'&&G.connected&&G.sheetId){
-    saving=saving.then(()=>gFetch(`${SHEETS}/${G.sheetId}/values/${rng('Settings!A1')}?valueInputOption=RAW`,{method:'PUT',body:JSON.stringify({values:[['patient',state.settings.patient||''],['dob',state.settings.dob||''],['devices',deviceNames().join('|')],['medicines',medicineNames().join('|')]]})}).catch(()=>{}));
+    saving=saving.then(()=>gFetch(`${SHEETS}/${G.sheetId}/values/${rng('Settings!A1')}?valueInputOption=RAW`,{method:'PUT',body:JSON.stringify({values:[['patient',state.settings.patient||''],['dob',state.settings.dob||''],['devices',deviceNames().join('|')],['medicines',medicineNames().join('|')],['target',`${target().sys}/${target().dia}`]]})}).catch(()=>{}));
   }
 }
 function updateStorageNote(){
@@ -551,7 +568,7 @@ function st(arr){
 const isHigh = r => r.sys>=135 || r.dia>=85;
 const pctOf=(k,n)=>n?Math.round(k/n*100)+'%':'–';
 const ppOf=r=>r.sys-r.dia, mapOf=r=>r.dia+(r.sys-r.dia)/3;
-function summarize(list){ return {n:list.length, sys:st(list.map(r=>r.sys)), dia:st(list.map(r=>r.dia)), hr:st(list.map(r=>r.hr)), pp:st(list.map(ppOf)), map:st(list.map(mapOf)), high:list.filter(isHigh).length, hiS:list.filter(r=>r.sys>=135).length, hiD:list.filter(r=>r.dia>=85).length}; }
+function summarize(list){ return {n:list.length, sys:st(list.map(r=>r.sys)), dia:st(list.map(r=>r.dia)), hr:st(list.map(r=>r.hr)), pp:st(list.map(ppOf)), map:st(list.map(mapOf)), rpp:st(list.map(r=>r.hr!=null?r.sys*r.hr:null)), high:list.filter(isHigh).length, hiS:list.filter(r=>r.sys>=135).length, hiD:list.filter(r=>r.dia>=85).length}; }
 function monthly(list){
   const m=new Map(); list.forEach(r=>{ const k=r.dt.slice(0,7); if(!m.has(k)) m.set(k,[]); m.get(k).push(r); });
   return [...m].sort((a,b)=>a[0]<b[0]?-1:1).map(([k,rs])=>({month:k, label:dayDate(k+'-01').toLocaleDateString('en-GB',{month:'short',year:'numeric'}), s:summarize(rs), days:new Set(rs.map(r=>r.dt.slice(0,10))).size}));
@@ -565,7 +582,7 @@ function trend(list){
   const fit=ys=>{ const p=xs.map((x,i)=>[x,ys[i]]).filter(q=>q[1]!=null&&!isNaN(q[1])); const n=p.length; if(n<10) return null;
     const mx=p.reduce((a,q)=>a+q[0],0)/n, my=p.reduce((a,q)=>a+q[1],0)/n; let sxx=0,sxy=0; p.forEach(([x,y])=>{ sxx+=(x-mx)**2; sxy+=(x-mx)*(y-my); });
     return sxx?sxy/sxx:null; };
-  return {sys:fit(dl.map(d=>d.sys)), dia:fit(dl.map(d=>d.dia)), pp:fit(dl.map(d=>d.sys-d.dia)), map:fit(dl.map(d=>d.dia+(d.sys-d.dia)/3)), hr:fit(dl.map(d=>d.hr)), days:dl.length, span};
+  return {sys:fit(dl.map(d=>d.sys)), dia:fit(dl.map(d=>d.dia)), pp:fit(dl.map(d=>d.sys-d.dia)), map:fit(dl.map(d=>d.dia+(d.sys-d.dia)/3)), hr:fit(dl.map(d=>d.hr)), rpp:fit(dl.map(d=>d.rpp)), days:dl.length, span};
 }
 const sgn1=(v,ascii)=>v==null||isNaN(v)?'–':(v>0?'+':v<0?(ascii?'-':'−'):'')+Math.abs(Math.round(v*10)/10).toFixed(1);
 function trendText(T,ascii){ const f=v=>sgn1(v,ascii);
@@ -578,8 +595,9 @@ function byDay(list){ const m=new Map(); list.forEach(r=>{ const d=r.dt.slice(0,
 function days(list){
   return [...byDay(list)].map(([day,rs])=>{
     let w=null; rs.forEach(r=>{ if(r.weight!=null) w=r.weight; });
-    return {day, sys:st(rs.map(r=>r.sys)).mean, dia:st(rs.map(r=>r.dia)).mean, hr:st(rs.map(r=>r.hr)).mean,
-      weight:w, activity:rs.some(r=>r.activity), med:rs.some(r=>r.med), rs};
+    const n=v=>v==null||isNaN(v)?null:v;
+    return {day, sys:st(rs.map(r=>r.sys)).mean, dia:st(rs.map(r=>r.dia)).mean, hr:n(st(rs.map(r=>r.hr)).mean),
+      pp:st(rs.map(ppOf)).mean, rpp:n(st(rs.map(r=>r.hr!=null?r.sys*r.hr:null)).mean), weight:w, med:rs.some(r=>r.med), rs};
   }).sort((a,b)=>a.day<b.day?-1:1);
 }
 function pearson(xs,ys){
@@ -593,24 +611,181 @@ function describeR(r){
   const a=Math.abs(r); const s = a<0.2?'no clear':a<0.4?'a weak':a<0.6?'a moderate':'a strong';
   return a<0.2 ? `no clear relationship (r = ${r.toFixed(2)})` : `${s} ${r>0?'positive':'negative'} relationship (r = ${r.toFixed(2)})`;
 }
-const ACT_GROUPS=[['before','Measured before exercising (same day)'],['0-2','Up to 2 hours after exercise'],['2-6','2 to 6 hours after exercise'],['6+','More than 6 hours after exercise'],['unknown','Exercise day, time not recorded'],['none','Days without exercise']];
-function actDayMap(src){
-  const m=new Map();
-  src.forEach(r=>{ const d=r.dt.slice(0,10); const e=m.get(d)||{active:false,times:new Set()}; if(r.activity){ e.active=true; if(r.activityTime) e.times.add(+r.activityTime.slice(0,2)*60+ +r.activityTime.slice(3,5)); } m.set(d,e); });
-  return m;
+/* ---------- Physical activity the day before ---------- */
+const addDays=(day,n)=>{ const d=dayDate(day); d.setDate(d.getDate()+n); return toDT(d).slice(0,10); };
+const dayNum=day=>Math.round(dayDate(day).getTime()/864e5);   // whole-day index, safe across daylight-saving changes
+// "Physical activity yesterday" for one reading. Readings saved before this option existed have no answer (null):
+// for those, the old "activity today" mark on the previous day is used, which records the same fact.
+function actYestFn(){
+  const leg=new Map(); state.readings.forEach(r=>{ if(r.activity){ const d=r.dt.slice(0,10); if(!leg.has(d)||r.activityNote) leg.set(d,r.activityNote||''); } });
+  const f=r=>r.actPrev!=null ? r.actPrev : leg.has(addDays(r.dt.slice(0,10),-1));
+  f.note=r=>r.actPrev!=null ? (r.actPrev?r.actPrevNote:'') : (leg.get(addDays(r.dt.slice(0,10),-1))||'');
+  return f;
 }
-function actRelation(r,map){
-  const e=map.get(r.dt.slice(0,10)); if(!e||!e.active) return 'none';
-  if(!e.times.size) return 'unknown';
-  const t=+r.dt.slice(11,13)*60+ +r.dt.slice(14,16);
-  const before=[...e.times].filter(x=>x<=t); if(!before.length) return 'before';
-  const gap=t-Math.max(...before); return gap<=120?'0-2':gap<=360?'2-6':'6+';
-}
+// Days that followed an active day (a day counts if any of its readings is marked)
+function activeDays(list,AY){ AY=AY||actYestFn(); const s=new Set(); list.forEach(r=>{ if(AY(r)) s.add(r.dt.slice(0,10)); }); return s; }
 function activityGroups(list){
-  const map=actDayMap(list);
-  return ACT_GROUPS.map(([k,label])=>({label, list:list.filter(r=>actRelation(r,map)===k)})).filter(g=>g.list.length);
+  const A=activeDays(list), out=[];
+  [['After an active day',list.filter(r=>A.has(r.dt.slice(0,10)))],['After a rest day',list.filter(r=>!A.has(r.dt.slice(0,10)))]].forEach(([l,L])=>{
+    if(!L.length) return; out.push({label:l,list:L,bold:true});
+    PERIODS.forEach(([k,pl])=>{ const P=L.filter(r=>period(r)===k); if(P.length) out.push({label:pl,list:P,sub:true}); });
+  });
+  return out;
 }
-const actLabel=r=>r.activity?[r.activityTime,r.activityNote].filter(Boolean).join(' ')||'Yes':'–';
+const sgn0=v=>v==null||isNaN(v)?'–':(Math.round(v)>0?'+':Math.round(v)<0?'-':'')+Math.abs(Math.round(v));
+function activityNote(list){
+  const A=activeDays(list), m=list.filter(r=>period(r)==='morning');
+  const a=summarize(m.filter(r=>A.has(r.dt.slice(0,10)))), b=summarize(m.filter(r=>!A.has(r.dt.slice(0,10))));
+  if(!a.n||!b.n) return '';
+  return `Mornings after an active day averaged ${r0(a.sys.mean)}/${r0(a.dia.mean)} mmHg (${a.n} readings), mornings after a rest day ${r0(b.sys.mean)}/${r0(b.dia.mean)} mmHg (${b.n} readings): a difference of ${sgn0(a.sys.mean-b.sys.mean)}/${sgn0(a.dia.mean-b.dia.mean)} mmHg.`;
+}
+const actLabel=(r,AY)=>{ AY=AY||actYestFn(); return AY(r)?(AY.note(r)||'Yes'):'–'; };
+
+/* ---------- ESH 7-day home monitoring protocol ---------- */
+// Windows of 7 calendar days; day 1 is discarded; morning and evening readings of days 2-7 are averaged.
+// A window qualifies with at least 3 days having both morning and evening readings and at least 12 measurements.
+const measOf=r=>r.mode==='average'?(r.count||2):1;
+const eshHigh=w=>w.s.sys.mean>=135||w.s.dia.mean>=85;
+function eshWeeks(list){
+  const bd=byDay(list), ds=[...bd.keys()].sort(); if(!ds.length) return [];
+  const first=ds[0], out=[]; let end=ds[ds.length-1];
+  while(end>first){
+    const start=addDays(end,-6), used=[]; let both=0, meas=0, dcount=0;
+    for(let i=1;i<7;i++){
+      const rs=(bd.get(addDays(start,i))||[]).filter(r=>period(r)!=='afternoon'); if(!rs.length) continue;
+      dcount++; if(rs.some(r=>period(r)==='morning')&&rs.some(r=>period(r)==='evening')) both++;
+      rs.forEach(r=>{ used.push(r); meas+=measOf(r); });
+    }
+    if(both>=3&&meas>=12){ out.push({start, first:addDays(start,1), end, list:used, s:summarize(used), both, meas, days:dcount}); end=addDays(end,-7); }
+    else end=addDays(end,-1);
+  }
+  return out;   // most recent first, not overlapping
+}
+
+/* ---------- Target and time in target range ---------- */
+const LOW_SYS=100;
+function target(){ const t=state.settings.target||{}, s=+t.sys, d=+t.dia; return {sys:s>=90&&s<=200?s:135, dia:d>=50&&d<=130?d:85}; }
+const dayCat=(d,T)=>d.sys<LOW_SYS?'low':(d.sys>=T.sys||d.dia>=T.dia)?'above':'in';
+const catName=k=>({in:'in target',above:'above target',low:'low'})[k];
+const monthLabel=m=>dayDate(m+'-01').toLocaleDateString('en-GB',{month:'short',year:'numeric'});
+function ttr(dl){
+  const T=target(), c={in:0,above:0,low:0}, runs=[], months=new Map(); let cur=null;
+  dl.forEach(d=>{
+    const k=dayCat(d,T), n=dayNum(d.day); c[k]++;
+    if(cur&&cur.k===k&&n===cur.n+1){ cur.end=d.day; cur.len++; cur.n=n; } else { cur={k,start:d.day,end:d.day,len:1,n}; runs.push(cur); }
+    const m=d.day.slice(0,7), e=months.get(m)||{in:0,above:0,low:0,n:0}; e[k]++; e.n++; months.set(m,e);
+  });
+  const best=k=>runs.filter(r=>r.k===k).sort((a,b)=>b.len-a.len||(a.end<b.end?1:-1))[0]||null;
+  return {T, n:dl.length, c, bestIn:best('in'), bestAbove:best('above'), current:runs[runs.length-1]||null,
+    months:[...months].sort((a,b)=>a[0]<b[0]?-1:1).map(([m,e])=>Object.assign({month:m,label:monthLabel(m)},e))};
+}
+const runText=r=>r?`${r.len} day${r.len===1?'':'s'} (${numDate(r.start)}${r.len>1?' to '+numDate(r.end):''})`:'none';
+
+/* ---------- Rolling averages ---------- */
+// Average of daily averages over the last `win` calendar days, shown when at least `minDays` of them have readings.
+// Computed on all data, then cut to the period, so the first days of a period still get a full window.
+function rolling(dlAll, win, minDays, from, to){
+  if(!dlAll.length) return [];
+  const d0=dlAll[0].day, base=dayNum(d0), N=dayNum(dlAll[dlAll.length-1].day)-base+1, keys=['sys','dia','hr','pp'], S={}, C={}, v={};
+  keys.forEach(k=>{ S[k]=new Float64Array(N+1); C[k]=new Int32Array(N+1); v[k]=new Array(N).fill(null); });
+  dlAll.forEach(d=>{ const i=dayNum(d.day)-base; keys.forEach(k=>{ v[k][i]=d[k]; }); });
+  keys.forEach(k=>{ for(let i=0;i<N;i++){ const x=v[k][i], ok=x!=null&&!isNaN(x); S[k][i+1]=S[k][i]+(ok?x:0); C[k][i+1]=C[k][i]+(ok?1:0); } });
+  const out=[], t0=dayDate(d0);
+  for(let i=0;i<N;i++){
+    const dd=new Date(t0); dd.setDate(dd.getDate()+i); const day=toDT(dd).slice(0,10);
+    if((from&&day<from)||(to&&day>to)) continue;
+    const lo=Math.max(0,i-win+1), p={day, t:dd.getTime()+432e5};
+    keys.forEach(k=>{ const n=C[k][i+1]-C[k][lo]; p[k]=n>=minDays?(S[k][i+1]-S[k][lo])/n:null; p[k+'N']=n; });
+    if(keys.some(k=>p[k]!=null)) out.push(p);
+  }
+  return out;
+}
+const lastPt=(arr,k)=>{ for(let i=arr.length-1;i>=0;i--) if(arr[i][k]!=null) return arr[i]; return null; };
+const rollText=(p,ascii)=>p?`${r0(p.sys)}/${r0(p.dia)} mmHg on ${numDate(p.day)} (${p.sysN} days with readings)`:'not enough days';
+
+/* ---------- Variability ---------- */
+function variability(list, dl){
+  const row=(label,get,key)=>{
+    const R=st(list.map(get)), D=st(dl.map(d=>d[key])); let s=0, n=0;
+    for(let i=1;i<dl.length;i++){ const a=dl[i-1][key], b=dl[i][key];
+      if(dayNum(dl[i].day)-dayNum(dl[i-1].day)===1&&a!=null&&b!=null&&!isNaN(a)&&!isNaN(b)){ s+=Math.abs(b-a); n++; } }
+    return {label, R, D, rcv:R.n>1?R.sd/R.mean*100:null, dcv:D.n>1?D.sd/D.mean*100:null, arv:n?s/n:null, pairs:n};
+  };
+  return [row('Systolic',r=>r.sys,'sys'), row('Diastolic',r=>r.dia,'dia'), row('Pulse',r=>r.hr,'hr')].filter(x=>x.R.n);
+}
+
+/* ---------- Day of week and seasons ---------- */
+const DOW_NAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const dowOf=r=>dayDate(r.dt.slice(0,10)).getDay();
+const isWeekend=r=>{ const w=dowOf(r); return w===0||w===6; };
+function dowGroups(list){
+  return [...[1,2,3,4,5,6,0].map(w=>({label:DOW_NAMES[w], list:list.filter(r=>dowOf(r)===w)})),
+    {label:'Weekdays (Mon–Fri)', list:list.filter(r=>!isWeekend(r)), bold:true},
+    {label:'Weekend (Sat–Sun)', list:list.filter(isWeekend), bold:true}].filter(g=>g.list.length);
+}
+function diffNote(a,b,la,lb){
+  const A=summarize(a), B=summarize(b); if(!A.n||!B.n) return '';
+  return `${la} minus ${lb}: ${sgn0(A.sys.mean-B.sys.mean)}/${sgn0(A.dia.mean-B.dia.mean)} mmHg${A.hr.n&&B.hr.n?`, pulse ${sgn0(A.hr.mean-B.hr.mean)} bpm`:''}.`;
+}
+const MONTH_NAMES=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const SEASONS=[['Winter (Dec–Feb)',[12,1,2]],['Spring (Mar–May)',[3,4,5]],['Summer (Jun–Aug)',[6,7,8]],['Autumn (Sep–Nov)',[9,10,11]]];
+const monOf=r=>+r.dt.slice(5,7);
+function seasonGroups(list){
+  const out=[];
+  SEASONS.forEach(([l,ms])=>{
+    const L=list.filter(r=>ms.includes(monOf(r))); if(!L.length) return; out.push({label:l,list:L,bold:true});
+    ms.forEach(m=>{ const M=L.filter(r=>monOf(r)===m); if(!M.length) return; const y=new Set(M.map(r=>r.dt.slice(0,4))).size;
+      out.push({label:MONTH_NAMES[m-1]+(y>1?` (${y} years)`:''), list:M, sub:true}); });
+  });
+  return out;
+}
+function seasonNote(list){
+  if(!list.length) return '';
+  const span=dayNum(list[list.length-1].dt.slice(0,10))-dayNum(list[0].dt.slice(0,10));
+  const d=diffNote(list.filter(r=>[12,1,2].includes(monOf(r))), list.filter(r=>[6,7,8].includes(monOf(r))), 'Winter', 'summer');
+  return `${d?d+' ':''}Months are pooled across all years.${span<365?' With less than a year of data, differences between seasons may reflect changes in treatment or habits rather than the season.':''}`;
+}
+
+/* ---------- Pulse, rate-pressure product, pulse pressure and age ---------- */
+const rppOf=r=>r.hr!=null?r.sys*r.hr:null;
+function pulseByPeriod(list){
+  return [['All readings',list,true],...PERIODS.map(([k,l])=>[l,list.filter(r=>period(r)===k),false])].map(([label,L,bold])=>{
+    const H=L.filter(r=>r.hr!=null); return {label, bold, n:H.length, hr:st(H.map(r=>r.hr)), rpp:st(H.map(rppOf))};
+  }).filter(x=>x.n);
+}
+// Average of the first and of the last 30 days of a list (only when it spans at least 90 days)
+function firstLast30(dl,key){
+  if(dl.length<2) return null; const s=dayNum(dl[0].day), e=dayNum(dl[dl.length-1].day); if(e-s<90) return null;
+  const ok=d=>d[key]!=null&&!isNaN(d[key]);
+  const a=st(dl.filter(d=>ok(d)&&dayNum(d.day)-s<30).map(d=>d[key])), b=st(dl.filter(d=>ok(d)&&e-dayNum(d.day)<30).map(d=>d[key]));
+  return a.n&&b.n?{a:a.mean,b:b.mean}:null;
+}
+const validDob=(dob,list)=>/^\d{4}-\d{2}-\d{2}$/.test(dob||'')&&(!list.length||dob<list[0].dt.slice(0,10))?dob:null;
+function ageYears(day,dob){ const a=dayDate(day), b=dayDate(dob); let y=a.getFullYear()-b.getFullYear(); if(a.getMonth()<b.getMonth()||(a.getMonth()===b.getMonth()&&a.getDate()<b.getDate())) y--; return y; }
+function ageGroups(list,dob){
+  const m=new Map(); list.forEach(r=>{ const a=ageYears(r.dt.slice(0,10),dob); if(!m.has(a)) m.set(a,[]); m.get(a).push(r); });
+  return [...m].sort((a,b)=>a[0]-b[0]).map(([age,L])=>({age, list:L, s:summarize(L), first:L[0].dt, last:L[L.length-1].dt}));
+}
+
+/* ---------- Agreement between devices ---------- */
+// Readings from two different devices taken within `maxMin` minutes are paired, closest first, each reading used once.
+function deviceAgreement(list, maxMin=15){
+  const rs=list.filter(r=>r.device).map(r=>({r,t:parseDT(r.dt).getTime()})).sort((a,b)=>a.t-b.t), cand=new Map();
+  for(let i=0;i<rs.length;i++) for(let j=i+1;j<rs.length&&rs[j].t-rs[i].t<=maxMin*6e4;j++){
+    const a=rs[i].r, b=rs[j].r; if(a.device.toLowerCase()===b.device.toLowerCase()) continue;
+    const [x,y]=a.device.localeCompare(b.device)<0?[a,b]:[b,a], k=x.device+'\u0000'+y.device;
+    if(!cand.has(k)) cand.set(k,[]); cand.get(k).push({x,y,gap:rs[j].t-rs[i].t});
+  }
+  const agg=v=>{ const s=st(v); return s.n>1?Object.assign(s,{lo:s.mean-1.96*s.sd, hi:s.mean+1.96*s.sd}):s; };
+  return [...cand].map(([k,cs])=>{
+    cs.sort((p,q)=>p.gap-q.gap); const used=new Set(), pairs=[];
+    cs.forEach(c=>{ if(used.has(c.x)||used.has(c.y)) return; used.add(c.x); used.add(c.y); pairs.push(c); });
+    const [A,B]=k.split('\u0000');
+    return {A, B, n:pairs.length, sys:agg(pairs.map(p=>p.x.sys-p.y.sys)), dia:agg(pairs.map(p=>p.x.dia-p.y.dia)),
+      hr:agg(pairs.map(p=>p.x.hr!=null&&p.y.hr!=null?p.x.hr-p.y.hr:null))};
+  }).filter(g=>g.n>=3).sort((a,b)=>b.n-a.n);
+}
+const loa=s=>s.n>1?`${sgn0(s.lo)} to ${sgn0(s.hi)}`:'–';
 function medGroups(list){
   const groups=[{label:'No medicine recorded', list:list.filter(r=>!r.med)}];
   const withMed=list.filter(r=>r.med);
@@ -642,7 +817,7 @@ function rangeLabel(){
 
 /* ---------- Chart ---------- */
 function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
-function themeColors(){ return {sys:cssVar('--sys'),dia:cssVar('--dia'),hr:cssVar('--hr'),grid:cssVar('--line'),text:cssVar('--muted'),bg:cssVar('--surface')}; }
+function themeColors(){ return {sys:cssVar('--sys'),dia:cssVar('--dia'),hr:cssVar('--hr'),pp:cssVar('--accent'),grid:cssVar('--line'),text:cssVar('--muted'),bg:cssVar('--surface')}; }
 function chartDomain(pts){
   let t0=pts[0].t, t1=pts[pts.length-1].t; if(t1-t0<864e5){ t0-=432e5; t1+=432e5; }
   const sysMax=Math.max(...pts.map(p=>p.sys)), diaMin=Math.min(...pts.map(p=>p.dia));
@@ -686,12 +861,60 @@ function drawChart(ctx, W, H, pts, o){
   });
   return pts.map(p=>({x:X(p.t), y:Y(p.sys), p}));
 }
+// Generic line chart: lines = [{pts:[{t,v}], color, width, alpha, gap (days that break the line), dots}]
+function drawLines(ctx, W, H, lines, o){
+  const c=o.colors, f=o.font||'12px "Public Sans", system-ui, sans-serif';
+  ctx.clearRect(0,0,W,H);
+  if(o.fill){ ctx.fillStyle=o.fill; ctx.fillRect(0,0,W,H); }
+  ctx.font=f;
+  const all=[].concat(...lines.map(l=>l.pts));
+  if(!all.length){ ctx.fillStyle=c.text; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(o.empty||'Not enough data for this chart yet',W/2,H/2); return; }
+  let t0=Infinity, t1=-Infinity, v0=Infinity, v1=-Infinity;
+  all.forEach(p=>{ if(p.t<t0)t0=p.t; if(p.t>t1)t1=p.t; if(p.v<v0)v0=p.v; if(p.v>v1)v1=p.v; });
+  const refs=(o.refs||[]).map(([v,k])=>[v,c[k]||k]);
+  refs.forEach(([v])=>{ v0=Math.min(v0,v); v1=Math.max(v1,v); });
+  if(t1-t0<864e5){ t0-=432e5; t1+=432e5; }
+  let step=o.step||10, y0=Math.floor((v0-step/2)/step)*step, y1=Math.ceil((v1+step/2)/step)*step;
+  while((y1-y0)/step>8){ step*=2; y0=Math.floor(y0/step)*step; y1=Math.ceil(y1/step)*step; }
+  const L=42, R=14, T=12, B=26, pw=W-L-R, ph=H-T-B;
+  const X=t=>L+(t-t0)/(t1-t0)*pw, Y=v=>T+(1-(v-y0)/(y1-y0))*ph;
+  ctx.textBaseline='middle'; ctx.strokeStyle=c.grid; ctx.lineWidth=1; ctx.fillStyle=c.text;
+  for(let v=y0; v<=y1+1e-9; v+=step){ const y=Math.round(Y(v))+.5; ctx.beginPath(); ctx.moveTo(L,y); ctx.lineTo(L+pw,y); ctx.stroke(); ctx.textAlign='right'; ctx.fillText(v,L-8,y); }
+  ctx.setLineDash([5,4]); ctx.lineWidth=1.2;
+  refs.forEach(([v,col])=>{ if(v>y0&&v<y1){ ctx.strokeStyle=col; ctx.globalAlpha=.55; ctx.beginPath(); ctx.moveTo(L,Y(v)); ctx.lineTo(L+pw,Y(v)); ctx.stroke(); ctx.globalAlpha=1; } });
+  ctx.setLineDash([]);
+  const nT=Math.max(2,Math.min(7,Math.floor(pw/95))), span=(t1-t0)/864e5;
+  ctx.fillStyle=c.text; ctx.textBaseline='top';
+  for(let i=0;i<nT;i++){ const t=t0+(t1-t0)*i/(nT-1), d=new Date(t);
+    const lab = span>300 ? d.toLocaleDateString('en-GB',{month:'short',year:'2-digit'}) : d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+    ctx.textAlign = i===0?'left':i===nT-1?'right':'center'; ctx.fillText(lab, X(t), T+ph+8); }
+  lines.forEach(l=>{
+    if(!l.pts.length) return;
+    ctx.strokeStyle=l.color; ctx.fillStyle=l.color; ctx.lineWidth=l.width||2; ctx.globalAlpha=l.alpha==null?1:l.alpha; ctx.lineJoin='round';
+    ctx.beginPath(); let prev=null;
+    l.pts.forEach(p=>{ const x=X(p.t), y=Y(p.v); if(prev&&p.t-prev.t<=(l.gap||1e9)*864e5) ctx.lineTo(x,y); else ctx.moveTo(x,y); prev=p; });
+    ctx.stroke();
+    if(l.dots) l.pts.forEach(p=>{ ctx.beginPath(); ctx.arc(X(p.t),Y(p.v),1.7,0,Math.PI*2); ctx.fill(); });
+    ctx.globalAlpha=1;
+  });
+}
+const ptsOf=(arr,k)=>arr.filter(p=>p[k]!=null&&!isNaN(p[k])).map(p=>({t:p.t,v:p[k]}));
+function rollLines(r7,r30,c){
+  return [{pts:ptsOf(r7,'sys'),color:c.sys,width:1.2,alpha:.45,gap:1.5},{pts:ptsOf(r7,'dia'),color:c.dia,width:1.2,alpha:.45,gap:1.5},
+    {pts:ptsOf(r30,'sys'),color:c.sys,width:2.6,gap:1.5},{pts:ptsOf(r30,'dia'),color:c.dia,width:2.6,gap:1.5}];
+}
+// Daily averages as faint dots and a thin line, plus the 30-day rolling average as a thick line
+function seriesLines(dl,r30,key,color){
+  return [{pts:ptsOf(dailyPts(dl).map(p=>Object.assign({},p,{pp:p.d.pp})),key),color,width:1,alpha:.35,gap:3,dots:true},
+    {pts:ptsOf(r30,key),color,width:2.6,gap:1.5}];
+}
 function sizeCanvas(cv){
   const r=cv.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
   cv.width=Math.max(1,Math.round(r.width*dpr)); cv.height=Math.max(1,Math.round(r.height*dpr));
   const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); return [ctx,r.width,r.height];
 }
 const hits={chart:[], chartDay:[]};
+let lineCharts=[];   // extra line charts drawn after each render: {id, lines(colors), opts}
 function renderChart(){
   const cv=$('#chart'); if(!cv) return;
   const list=filtered();
@@ -700,6 +923,7 @@ function renderChart(){
   const [ctx,W,H]=sizeCanvas(cv);
   hits.chart=drawChart(ctx,W,H,pts,{colors,showHR:state.showHR,dom});
   const cd=$('#chartDay'); if(cd){ const [c2,W2,H2]=sizeCanvas(cd); hits.chartDay=drawChart(c2,W2,H2,dailyPts(days(list)),{colors,showHR:state.showHR,dom}); }
+  lineCharts.forEach(sp=>{ const cv2=$('#'+sp.id); if(!cv2) return; const [c3,W3,H3]=sizeCanvas(cv2); drawLines(c3,W3,H3,sp.lines(colors),Object.assign({colors},sp.opts)); });
   const wc=$('#wspark'); if(wc){
     const [wctx,ww,wh]=sizeCanvas(wc); const dl=days(filtered()).filter(d=>d.weight!=null);
     wctx.clearRect(0,0,ww,wh);
@@ -733,11 +957,93 @@ function chartHover(e, id){
 function bpCell(s){ if(!s.sys.n) return '–'; return `<span class="bp">${r0(s.sys.mean)}/${r0(s.dia.mean)}<span class="sd">±${r0(s.sys.sd)}/${r0(s.dia.sd)}</span></span>`; }
 function groupTable(groups, firstHead){
   return `<div class="scroll"><table><thead><tr><th>${firstHead}</th><th class="num">Readings</th><th class="num">Blood pressure</th><th class="num">Pulse</th><th class="num">SYS ≥ 135</th><th class="num">DIA ≥ 85</th></tr></thead><tbody>${
-    groups.map(g=>{ const s=summarize(g.list); return `<tr><td${g.sub?' style="padding-left:20px"':''}>${esc(g.label)}</td><td class="num">${s.n}</td><td class="num">${bpCell(s)}</td><td class="num">${r0(s.hr.mean)}</td><td class="num">${pctOf(s.hiS,s.n)}</td><td class="num">${pctOf(s.hiD,s.n)}</td></tr>`; }).join('')
+    groups.map(g=>{ const s=summarize(g.list); return `<tr${g.bold?' style="font-weight:600"':''}><td${g.sub?' style="padding-left:20px"':''}>${esc(g.label)}</td><td class="num">${s.n}</td><td class="num">${bpCell(s)}</td><td class="num">${r0(s.hr.mean)}</td><td class="num">${pctOf(s.hiS,s.n)}</td><td class="num">${pctOf(s.hiD,s.n)}</td></tr>`; }).join('')
   }</tbody></table></div>`;
+}
+// Small HTML table: rows = [{cells:[html…], bold, sub}], num = which columns are right-aligned
+function tableHtml(heads, rows, num, maxH){
+  return `<div class="scroll"${maxH?` style="max-height:${maxH}px;overflow-y:auto"`:''}><table><thead><tr>${heads.map((h,i)=>`<th${num[i]?' class="num"':''}>${h}</th>`).join('')}</tr></thead><tbody>${
+    rows.map(r=>`<tr${r.bold?' style="font-weight:600"':''}>${r.cells.map((c,i)=>`<td${num[i]?' class="num"':''}${i===0&&r.sub?' style="padding-left:20px"':''}>${c}</td>`).join('')}</tr>`).join('')
+  }</tbody></table></div>`;
+}
+const panel=(title,side,body,note)=>`<section class="panel"><div class="panel-head"><h2>${title}</h2>${side?`<span class="small muted">${side}</span>`:''}</div>${body}${note?`<p class="note">${note}</p>`:''}</section>`;
+const fmtShort=s=>dayDate(s.slice(0,10)).toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+const bpSpan=(s,hi)=>s.sys.n?`<span class="bp ${hi?'flag':''}">${r0(s.sys.mean)}/${r0(s.dia.mean)}</span>`:'–';
+
+function eshPanel(list){
+  const W=eshWeeks(list); let body;
+  if(!W.length) body=`<p class="muted">No week in this period meets the protocol yet.</p>`;
+  else {
+    const w=W[0], hi=eshHigh(w);
+    body=`<p class="small muted">Most recent week: ${esc(fmtShort(w.first))} to ${esc(fmtShort(w.end))}</p>
+      <div class="big"><span style="color:var(--sys)">${r0(w.s.sys.mean)}</span><span class="muted" style="font-weight:400">/</span><span style="color:var(--dia)">${r0(w.s.dia.mean)}</span> <small>mmHg${w.s.hr.n?` · pulse ${r0(w.s.hr.mean)}`:''}</small></div>
+      <p style="margin:6px 0 12px"><span class="chip ${hi?'high':'ok'}">${hi?'At or above 135/85':'Below 135/85'}</span> <span class="small muted">${w.s.n} readings, ${w.both} days with morning and evening</span></p>
+      ${W.length>1?tableHtml(['Earlier weeks','Readings','Blood pressure','Pulse'], W.slice(1,9).map(x=>({cells:[`${esc(fmtShort(x.first))} – ${esc(fmtShort(x.end))}`, x.s.n, bpSpan(x.s,eshHigh(x)), r0(x.s.hr.mean)]})), [0,1,1,1]):''}`;
+  }
+  return panel('Home blood pressure (7-day protocol)', `${W.length} qualifying week${W.length===1?'':'s'}`, body,
+    'European Society of Hypertension protocol: morning and evening readings for 7 days; the first day is discarded and the rest are averaged. A week counts when at least 3 of the 6 days have both morning and evening readings and there are at least 12 measurements.');
+}
+
+function ttrPanel(dl){
+  const R=ttr(dl), p=k=>R.n?R.c[k]/R.n*100:0;
+  const body=`<div class="big">${pctOf(R.c.in,R.n)} <small>of ${R.n} days in target</small></div>
+    <div class="bar" role="img" aria-label="${R.c.in} days in target, ${R.c.above} above, ${R.c.low} low"><span style="width:${p('in')}%;background:var(--ok)"></span><span style="width:${p('above')}%;background:var(--sys)"></span><span style="width:${p('low')}%;background:var(--hr)"></span></div>
+    <div class="legend" style="margin:8px 0 10px"><span><i style="background:var(--ok)"></i>In target ${R.c.in}</span><span><i style="background:var(--sys)"></i>Above ${R.c.above}</span><span><i style="background:var(--hr)"></i>Low ${R.c.low}</span></div>
+    <p class="small" style="margin-bottom:10px">Longest run in target: ${runText(R.bestIn)}. Longest run above target: ${runText(R.bestAbove)}.${R.current?` Latest run: ${R.current.len} day${R.current.len===1?'':'s'} ${catName(R.current.k)}.`:''}</p>
+    ${tableHtml(['Month','Days','In target','Above','Low'], R.months.slice().reverse().map(m=>({cells:[esc(m.label), m.n, pctOf(m.in,m.n), pctOf(m.above,m.n), pctOf(m.low,m.n)]})), [0,1,1,1,1], 230)}`;
+  return panel('Time in target range', `target below ${R.T.sys}/${R.T.dia} · <button class="btn link" data-act="settings" style="padding:0">change</button>`, body,
+    `Each day counts once, using its daily average. Low means a daily average systolic below ${LOW_SYS}. A day without readings ends a run.`);
+}
+
+function variabilityPanel(list,dl){
+  const V=variability(list,dl);
+  return panel('Variability', '', tableHtml(['','SD','CV','Daily SD','Daily CV','ARV'],
+    V.map(v=>({cells:[v.label, v.R.n>1?r1(v.R.sd):'–', v.rcv!=null?r1(v.rcv)+'%':'–', v.D.n>1?r1(v.D.sd):'–', v.dcv!=null?r1(v.dcv)+'%':'–', v.arv!=null?r1(v.arv):'–']})), [0,1,1,1,1,1]),
+    `SD and CV (SD as a percentage of the mean) show how spread out the values are, for single readings and for daily averages. ARV, average real variability, is the average jump between daily averages on consecutive days (${V.length?V[0].pairs:0} pairs of days); it captures day-to-day swings that the SD can miss.`);
+}
+
+function dowPanel(list){
+  return panel('Day of week', '', groupTable(dowGroups(list),'Day'), diffNote(list.filter(isWeekend), list.filter(r=>!isWeekend(r)), 'Weekend', 'weekdays'));
+}
+function seasonPanel(list){
+  return panel('Seasonal pattern', '', groupTable(seasonGroups(list),'Season'), seasonNote(list));
+}
+
+function pulsePanel(list,dl,T){
+  const S=summarize(list);
+  if(!S.hr.n) return panel('Resting pulse and heart workload','','<p class="muted">No pulse recorded in this period.</p>');
+  const FL=firstLast30(dl,'hr');
+  return panel('Resting pulse and heart workload', '',
+    `<p class="small">Average ${r0(S.hr.mean)} bpm (range ${r0(S.hr.min)}–${r0(S.hr.max)}) · trend ${T&&T.hr!=null?sgn1(T.hr)+' bpm per year':'needs more data'}${FL?` · first 30 days ${r0(FL.a)}, last 30 days ${r0(FL.b)} bpm`:''}</p>
+    <div class="chartbox sm" style="margin:10px 0 12px"><canvas id="chartPulse" role="img" aria-label="Daily pulse and 30-day average"></canvas></div>
+    ${tableHtml(['','With pulse','Pulse','Rate-pressure product'], pulseByPeriod(list).map(x=>({cells:[esc(x.label), x.n, r0(x.hr.mean), `${r0(x.rpp.mean)}${x.rpp.n>1?` <span class="small muted">±${r0(x.rpp.sd)}</span>`:''}`], bold:x.bold})), [0,1,1,1])}`,
+    `Pulse taken with each blood pressure reading, at rest. Dots: daily averages; line: 30-day average. Rate-pressure product is systolic × pulse, a rough index of how hard the heart is working; its trend is ${T&&T.rpp!=null?sgn0(T.rpp)+' per year':'not available yet'}.`);
+}
+
+function ppPanel(list,dl,T){
+  const S=summarize(list), dob=validDob(state.settings.dob,state.readings), FL=firstLast30(dl,'pp');
+  let ageHtml;
+  if(dob){
+    const A=ageGroups(list,dob);
+    ageHtml=tableHtml(['Age','Readings','Pulse pressure','Blood pressure'], A.map(a=>({cells:[a.age, a.s.n, `${r0(a.s.pp.mean)}${a.s.pp.n>1?` <span class="small muted">±${r0(a.s.pp.sd)}</span>`:''}`, bpSpan(a.s)]})), [0,1,1,1]);
+  } else ageHtml='<p class="small muted">Add your date of birth in the Doctor report window to see pulse pressure by age.</p>';
+  return panel('Pulse pressure and age', dob?`age ${ageYears(list[0].dt.slice(0,10),dob)}${ageYears(list[list.length-1].dt.slice(0,10),dob)!==ageYears(list[0].dt.slice(0,10),dob)?'–'+ageYears(list[list.length-1].dt.slice(0,10),dob):''} in this period`:'',
+    `<p class="small">Average ${r0(S.pp.mean)} mmHg · trend ${T&&T.pp!=null?sgn1(T.pp)+' mmHg per year'+(dob?' (per year of age)':''):'needs more data'}${FL?` · first 30 days ${r0(FL.a)}, last 30 days ${r0(FL.b)}`:''}</p>
+    <div class="chartbox sm" style="margin:10px 0 12px"><canvas id="chartPP" role="img" aria-label="Daily pulse pressure and 30-day average"></canvas></div>${ageHtml}`,
+    'Pulse pressure is systolic minus diastolic and tends to widen with age as the large arteries stiffen. Dashed line: 60 mmHg, which guidelines treat as a sign of arterial stiffening in older people (an office threshold, so only a rough guide at home).');
+}
+
+function agreementPanel(list){
+  const DA=deviceAgreement(list);
+  const body=DA.length ? tableHtml(['Devices (first − second)','Pairs','Systolic','95% limits','Diastolic','95% limits','Pulse'],
+    DA.map(d=>({cells:[`${esc(d.A)} − ${esc(d.B)}`, d.n+(d.n<10?' <span class="small muted">few</span>':''), sgn1(d.sys.mean), loa(d.sys), sgn1(d.dia.mean), loa(d.dia), d.hr.n?sgn1(d.hr.mean):'–']})), [0,1,1,1,1,1,1])
+    : '<p class="muted">No pairs yet. Take readings on two devices within 15 minutes of each other to compare them.</p>';
+  return panel('Agreement between devices', DA.length?`${DA.length} device pair${DA.length===1?'':'s'}`:'', body,
+    'Readings from two devices taken within 15 minutes are paired, closest first. The difference is the first device minus the second, on average. The 95% limits (Bland-Altman) show the range of most single differences: a small average with wide limits means the devices agree on average but often disagree reading by reading. Fewer than 10 pairs gives unreliable limits.');
 }
 let showAll=false;
 function render(){
+  lineCharts=[];
   updateStorageNote(); syncRangebar();
   const main=$('#main');
   if(state.mode==='google'&&G.loading){ main.innerHTML='<p class="muted" style="padding:40px 0">Loading your readings from Google Sheets…</p>'; return; }
@@ -771,6 +1077,14 @@ function render(){
   if(!list.length){
     html+=`<div class="panel empty"><h2>No readings in this period</h2><p class="muted">Pick a longer period or add a reading.</p></div>`;
   } else {
+    const AY=actYestFn(), T=trend(list), [ba,bb]=bounds(), dlAll=days(state.readings);
+    const r7=rolling(dlAll,7,3,ba,bb), r30=rolling(dlAll,30,10,ba,bb);
+    lineCharts=[
+      {id:'chartRoll', lines:c=>rollLines(r7,r30,c), opts:{refs:[[135,'sys'],[85,'dia']], empty:'Not enough days for rolling averages yet'}},
+      {id:'chartPulse', lines:c=>seriesLines(dl,r30,'hr',c.hr), opts:{step:5, empty:'No pulse recorded in this period'}},
+      {id:'chartPP', lines:c=>seriesLines(dl,r30,'pp',c.pp), opts:{step:5, refs:[[60,'text']]}}
+    ];
+    html+=`<div class="grid2" style="margin-top:0;margin-bottom:18px">${eshPanel(list)}${ttrPanel(dl)}</div>`;
     html+=`<section class="panel"><div class="panel-head"><h2>Progression</h2>
       <div class="legend"><span><i style="background:var(--sys)"></i>Systolic</span><span><i style="background:var(--dia)"></i>Diastolic</span>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="hrToggle" ${state.showHR?'checked':''}><i style="background:var(--hr);margin-right:0"></i>Pulse (right axis)</label>
@@ -779,11 +1093,14 @@ function render(){
       <div class="chartbox"><canvas id="chart" role="img" aria-label="Every blood pressure reading over time"></canvas><div class="tip" id="tip_chart"></div></div>
       <h3 style="margin:22px 0 8px">Daily averages</h3>
       <div class="chartbox"><canvas id="chartDay" role="img" aria-label="Daily average blood pressure over time"></canvas><div class="tip" id="tip_chartDay"></div></div>
-      <p class="small muted" style="margin-top:8px">Both charts use the same scale, so you can compare them directly.</p></section>`;
+      <p class="small muted" style="margin-top:8px">Both charts use the same scale, so you can compare them directly.</p>
+      <h3 style="margin:22px 0 8px">Rolling averages</h3>
+      <div class="chartbox"><canvas id="chartRoll" role="img" aria-label="7-day and 30-day rolling average blood pressure"></canvas></div>
+      <p class="small muted" style="margin-top:8px">Thick lines: 30-day average (shown when at least 10 of the 30 days have readings). Thin lines: 7-day average (at least 3 of 7 days). Latest 7-day: ${rollText(lastPt(r7,'sys'))}. Latest 30-day: ${rollText(lastPt(r30,'sys'))}.</p></section>`;
     // monthly
     const mons=monthly(list).reverse();
     html+=`<section class="panel" style="margin-top:18px"><div class="panel-head"><h2>Monthly averages and trend</h2><span class="small muted">${mons.length} month${mons.length===1?'':'s'}</span></div>
-      <p style="margin-bottom:12px">${esc(trendText(trend(list)))}</p>
+      <p style="margin-bottom:12px">${esc(trendText(T))}</p>
       <div class="scroll" style="max-height:420px;overflow-y:auto"><table><thead><tr><th>Month</th><th class="num">Readings</th><th class="num">Days</th><th class="num">Blood pressure</th><th class="num">Pulse pressure</th><th class="num">Mean arterial</th><th class="num">Pulse</th><th class="num">SYS ≥ 135</th><th class="num">DIA ≥ 85</th></tr></thead><tbody>${
         mons.map(m=>`<tr><td>${esc(m.label)}</td><td class="num">${m.s.n}</td><td class="num">${m.days}</td><td class="num">${bpCell(m.s)}</td><td class="num">${r0(m.s.pp.mean)}</td><td class="num">${r0(m.s.map.mean)}</td><td class="num">${r0(m.s.hr.mean)}</td><td class="num">${pctOf(m.s.hiS,m.s.n)}</td><td class="num">${pctOf(m.s.hiD,m.s.n)}</td></tr>`).join('')
       }</tbody></table></div>
@@ -795,12 +1112,15 @@ function render(){
     if(mo.n&&ev.n){ const ds=mo.sys.mean-ev.sys.mean, dd=mo.dia.mean-ev.dia.mean;
       todNote = Math.abs(ds)<3&&Math.abs(dd)<3 ? 'Morning and evening averages are within 3 mmHg of each other.' :
         `Morning average is ${Math.abs(Math.round(ds))}/${Math.abs(Math.round(dd))} mmHg ${ds>=0?'higher':'lower'} than evening.`; }
-    html+=`<div class="grid2"><section class="panel"><div class="panel-head"><h2>By time of day</h2></div><div class="tod">${tod.map(t=>`<div><span class="small muted">${t.l} · ${t.h}</span><b>${t.s.n?r0(t.s.sys.mean)+'/'+r0(t.s.dia.mean):'–'}</b><span class="small muted">${t.s.n?`pulse ${r0(t.s.hr.mean)} · ${t.s.n} readings`:'no readings'}</span></div>`).join('')}</div>${todNote?`<p class="note">${todNote}</p>`:''}</section>`;
-    // activity
-    const act=dl.filter(d=>d.activity), noact=dl.filter(d=>!d.activity);
-    html+=`<section class="panel"><div class="panel-head"><h2>Physical activity</h2><span class="small muted">${act.length} of ${dl.length} days active</span></div>${groupTable(activityGroups(list),'Reading taken')}<p class="note">Timing is counted from the activity time you entered. If a day has more than one activity time, the most recent one before the reading is used.</p></section></div>`;
-    // medication
+    const todHtml=`<section class="panel"><div class="panel-head"><h2>By time of day</h2></div><div class="tod">${tod.map(t=>`<div><span class="small muted">${t.l} · ${t.h}</span><b>${t.s.n?r0(t.s.sys.mean)+'/'+r0(t.s.dia.mean):'–'}</b><span class="small muted">${t.s.n?`pulse ${r0(t.s.hr.mean)} · ${t.s.n} readings`:'no readings'}</span></div>`).join('')}</div>${todNote?`<p class="note">${todNote}</p>`:''}</section>`;
+    html+=`<div class="grid2">${variabilityPanel(list,dl)}${todHtml}</div>`;
+    html+=`<div class="grid2">${dowPanel(list)}${seasonPanel(list)}</div>`;
+    html+=`<div class="grid2">${pulsePanel(list,dl,T)}${ppPanel(list,dl,T)}</div>`;
+    // medication and activity the day before
+    const AD=activeDays(list,AY), an=activityNote(list);
     html+=`<div class="grid2"><section class="panel"><div class="panel-head"><h2>Medicine</h2><span class="small muted">${list.filter(r=>r.med).length} readings with medicine taken</span></div>${groupTable(medGroups(list),'Group')}</section>`;
+    html+=panel('Physical activity the day before', `${AD.size} of ${dl.length} days after an active day`, groupTable(activityGroups(list),'Reading taken'),
+      `${an?an+' ':''}Readings are grouped by whether you ticked "Physical activity yesterday"; days without the tick count as rest days. Readings saved before this option existed use the old same-day activity mark of the previous day.`)+'</div>';
     // weight
     const wd=dl.filter(d=>d.weight!=null);
     let wHtml='';
@@ -813,11 +1133,11 @@ function render(){
         <p class="small" style="margin-bottom:10px">Weight and systolic: ${describeR(rS)}. Weight and diastolic: ${describeR(rD)}.</p>
         ${groupTable(weightBands(dl),'Weight')}`;
     }
-    html+=`<section class="panel"><div class="panel-head"><h2>Weight</h2></div>${wHtml}</section></div>`;
+    html+=`<div class="grid2"><section class="panel"><div class="panel-head"><h2>Weight</h2></div>${wHtml}</section>${agreementPanel(list)}</div>`;
     // log
     const rows=list.slice().reverse(); const shown=showAll?rows:rows.slice(0,40);
-    html+=`<section class="panel log"><div class="panel-head"><h2>Readings</h2><span class="small muted">${rows.length} in this period</span></div><div class="scroll"><table><thead><tr><th>Date</th><th>Time</th><th class="num">SYS/DIA</th><th class="num">Pulse</th><th>Type</th><th>Device</th><th class="num">Weight</th><th>Medicine</th><th>Activity</th><th></th></tr></thead><tbody>${
-      shown.map(r=>`<tr><td>${esc(fmtDayShort(r.dt))}</td><td>${r.dt.slice(11,16)}</td><td class="num"><span class="bp ${isHigh(r)?'flag':''}">${r.sys}/${r.dia}</span></td><td class="num">${r.hr??'–'}</td><td>${countLabel(r)}</td><td>${esc(r.device)||'–'}</td><td class="num">${r.weight!=null?r1(r.weight):'–'}</td><td>${r.med?esc(r.medicine||'Yes'):'–'}</td><td>${esc(actLabel(r))}</td><td><button class="btn link" data-edit="${r.id}">Edit</button><button class="btn link" data-del="${r.id}" style="color:var(--sys)">Delete</button></td></tr>`).join('')
+    html+=`<section class="panel log"><div class="panel-head"><h2>Readings</h2><span class="small muted">${rows.length} in this period</span></div><div class="scroll"><table><thead><tr><th>Date</th><th>Time</th><th class="num">SYS/DIA</th><th class="num">Pulse</th><th>Type</th><th>Device</th><th class="num">Weight</th><th>Medicine</th><th>Active yesterday</th><th></th></tr></thead><tbody>${
+      shown.map(r=>`<tr><td>${esc(fmtDayShort(r.dt))}</td><td>${r.dt.slice(11,16)}</td><td class="num"><span class="bp ${isHigh(r)?'flag':''}">${r.sys}/${r.dia}</span></td><td class="num">${r.hr??'–'}</td><td>${countLabel(r)}</td><td>${esc(r.device)||'–'}</td><td class="num">${r.weight!=null?r1(r.weight):'–'}</td><td>${r.med?esc(r.medicine||'Yes'):'–'}</td><td>${esc(actLabel(r,AY))}</td><td><button class="btn link" data-edit="${r.id}">Edit</button><button class="btn link" data-del="${r.id}" style="color:var(--sys)">Delete</button></td></tr>`).join('')
     }</tbody></table></div>${rows.length>40?`<p style="margin-top:10px"><button class="btn link" data-act="more">${showAll?'Show fewer':'Show all '+rows.length}</button></p>`:''}</section>`;
   }
   main.innerHTML=banner+html;
@@ -881,7 +1201,12 @@ try{ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change'
 $('#addBtn').onclick=()=>openForm();
 $('#importBtn').onclick=()=>{ $('#importErr').textContent=''; $('#fileInput').value=''; openModal('importModal'); };
 $('#reportBtn').onclick=openReport;
-$('#settingsBtn').onclick=()=>{ updateSettingsUI(); renderDevManage(); renderMedManage(); openModal('settingsModal'); };
+$('#settingsBtn').onclick=()=>{ updateSettingsUI(); renderDevManage(); renderMedManage(); const T=target(); $('#s_tsys').value=T.sys; $('#s_tdia').value=T.dia; $('#targetErr').textContent=''; openModal('settingsModal'); };
+['s_tsys','s_tdia'].forEach(id=>$('#'+id).addEventListener('change',()=>{
+  const s=+$('#s_tsys').value, d=+$('#s_tdia').value;
+  if(!(s>=90&&s<=200)||!(d>=50&&d<=130)){ $('#targetErr').textContent='Use a systolic between 90 and 200 and a diastolic between 50 and 130.'; return; }
+  $('#targetErr').textContent=''; state.settings.target={sys:s,dia:d}; saveSettings(); render();
+}));
 $('#s_client').addEventListener('change',e=>{ const v=e.target.value.trim(); lsSet('bp.clientId',v); if(G.connected){ dropToken(); render(); } updateSettingsUI(); });
 $('#gConnect').onclick=()=>{ lsSet('bp.clientId',$('#s_client').value.trim()); if(state.mode!=='google'){ const g=document.querySelector('input[name=s_mode][value=google]'); g.checked=true; switchMode('google'); } else connectGoogle(); };
 $('#gDisconnect').onclick=disconnectGoogle;
@@ -973,7 +1298,7 @@ function fillLists(){
 function syncFormVis(){
   $('#countWrap').style.display=$('#f_mode').value==='average'?'':'none';
   $('#medWrap').style.display=$('#f_med').checked?'':'none';
-  $('#actWrap').style.display=$('#f_act').checked?'grid':'none';
+  $('#actWrap').style.display=$('#f_act').checked?'':'none';
 }
 ['f_mode','f_med','f_act'].forEach(id=>$('#'+id).addEventListener('change',syncFormVis));
 $('#f_dt').addEventListener('change',()=>{ if(state.editing) return; prefillDay($('#f_dt').value.slice(0,10)); });
@@ -981,7 +1306,8 @@ function prefillDay(day){
   const same=state.readings.filter(r=>r.dt.slice(0,10)===day);
   const w=same.map(r=>r.weight).filter(v=>v!=null).pop();
   if(w!=null && !$('#f_weight').value) $('#f_weight').value=w;
-  if(same.some(r=>r.activity)){ $('#f_act').checked=true; const n=same.map(r=>r.activityNote).filter(Boolean).pop(); if(n&&!$('#f_actnote').value) $('#f_actnote').value=n; const t=same.map(r=>r.activityTime).filter(Boolean).pop(); if(t&&!$('#f_acttime').value) $('#f_acttime').value=t; }
+  const AY=actYestFn();   // "yesterday" is the same for every reading of a day
+  if(same.some(AY)){ $('#f_act').checked=true; const n=same.map(AY.note).filter(Boolean).pop(); if(n&&!$('#f_actnote').value) $('#f_actnote').value=n; }
   syncFormVis();
 }
 function openForm(r){
@@ -989,10 +1315,10 @@ function openForm(r){
   $('#formTitle').textContent=r?'Edit reading':'Add reading';
   $('#saveReading').textContent=r?'Save changes':'Save reading';
   const last=state.readings[state.readings.length-1];
-  const v=r||{dt:toDT(new Date()), sys:'', dia:'', hr:'', device:last?last.device:'', mode:last?last.mode:'single', count:last&&last.count>1?last.count:3, weight:'', med:last?last.med:false, medicine:last?last.medicine:'', activity:false, activityTime:'', activityNote:'', notes:''};
+  const v=r||{dt:toDT(new Date()), sys:'', dia:'', hr:'', device:last?last.device:'', mode:last?last.mode:'single', count:last&&last.count>1?last.count:3, weight:'', med:last?last.med:false, medicine:last?last.medicine:'', notes:''};
   $('#f_dt').value=v.dt; $('#f_sys').value=v.sys; $('#f_dia').value=v.dia; $('#f_hr').value=v.hr??'';
   fillDeviceSelect(v.device); $('#f_mode').value=v.mode; $('#f_count').value=v.count||3; $('#f_weight').value=v.weight??'';
-  $('#f_med').checked=!!v.med; fillMedChecks(splitMeds(v.medicine)); $('#f_newmed').value=''; $('#f_act').checked=!!v.activity; $('#f_acttime').value=v.activityTime||''; $('#f_actnote').value=v.activityNote; $('#f_notes').value=v.notes;
+  $('#f_med').checked=!!v.med; fillMedChecks(splitMeds(v.medicine)); $('#f_newmed').value=''; const AY=actYestFn(); $('#f_act').checked=r?AY(r):false; $('#f_actnote').value=r?AY.note(r):''; $('#f_notes').value=v.notes;
   if(!r) prefillDay(v.dt.slice(0,10));
   syncFormVis(); openModal('formModal');
   setTimeout(()=>$(r?'#f_dt':'#f_sys').focus(),30);
@@ -1010,7 +1336,8 @@ $('#saveReading').onclick=()=>{
   if($('#f_newmed').value.trim()) return err('Press Add next to the new medicine name, or clear that box.');
   const w=g('f_weight').replace(',','.'); if(w && (isNaN(+w)||+w<20||+w>300)) return err('Weight should be in kilograms, between 20 and 300.');
   const rec=norm({id:state.editing?state.editing.id:undefined, dt:dt.slice(0,16), sys, dia, hr, device:($('#f_device').value==='__new'?'':$('#f_device').value), mode:$('#f_mode').value, count:g('f_count'), weight:w,
-    med:$('#f_med').checked, medicine:$('#f_med').checked?selectedMeds().join(' + '):'', activity:$('#f_act').checked, activityTime:$('#f_act').checked?$('#f_acttime').value:'', activityNote:$('#f_act').checked?g('f_actnote'):'', notes:g('f_notes')});
+    med:$('#f_med').checked, medicine:$('#f_med').checked?selectedMeds().join(' + '):'', actPrev:$('#f_act').checked, actPrevNote:$('#f_act').checked?g('f_actnote'):'',
+    activity:state.editing?state.editing.activity:false, activityTime:state.editing?state.editing.activityTime:'', activityNote:state.editing?state.editing.activityNote:'', notes:g('f_notes')});
   const months=new Set([rec.dt.slice(0,7)]);
   if(state.editing){ months.add(state.editing.dt.slice(0,7)); const i=state.readings.indexOf(state.editing); state.readings[i]=rec; }
   else state.readings.push(rec);
@@ -1047,9 +1374,11 @@ const ALIASES={
   weight:['weight','weight (kg)','kg','peso','peso (kg)'],
   med:['medicine taken','medication taken','med taken','medication','meds','taken','farmaco preso','farmaco assunto','terapia'],
   medicine:['medicine','medicine name','drug','which medicine','farmaco','nome farmaco','medicinale'],
-  activity:['activity','physical activity','exercise','attività','attivita','attività fisica','sport'],
-  activityTime:['activity time','time of activity','exercise time','ora attività','ora attivita','ora esercizio'],
-  activityNote:['activity note','activity notes','activity details','dettagli attività'],
+  actPrev:['activity yesterday','physical activity yesterday','exercise yesterday','active yesterday','attività ieri','attivita ieri','attività fisica ieri'],
+  actPrevNote:['activity yesterday note','activity yesterday notes','activity yesterday details','dettagli attività ieri'],
+  activity:['activity same day','activity','physical activity','exercise','attività','attivita','attività fisica','sport'],
+  activityTime:['activity same day time','activity time','time of activity','exercise time','ora attività','ora attivita','ora esercizio'],
+  activityNote:['activity same day note','activity note','activity notes','activity details','dettagli attività'],
   notes:['notes','note','comment','comments','commenti'],
   id:['id']
 };
@@ -1089,6 +1418,8 @@ function importRows(rows){
       medicine: medName || (medFlag && !truthy(medFlag) && !/^(n|no|false|0)$/i.test(medFlag) ? medFlag : ''),
       activity: g('activity')? (truthy(g('activity')) || (!/^(n|no|false|0)$/i.test(g('activity')))) : !!g('activityNote'),
       activityTime: g('activityTime'),
+      actPrev: g('actPrev') ? (truthy(g('actPrev')) || !/^(n|no|false|0|non?)$/i.test(g('actPrev'))) : (g('actPrevNote') ? true : null),
+      actPrevNote: g('actPrevNote') || (g('actPrev')&&!truthy(g('actPrev'))&&!/^(n|no|false|0|non?)$/i.test(g('actPrev'))?g('actPrev'):''),
       activityNote: g('activityNote') || (g('activity')&&!truthy(g('activity'))&&!/^(n|no|false|0)$/i.test(g('activity'))?g('activity'):''),
       notes:g('notes')}));
   });
@@ -1118,9 +1449,9 @@ $('#fileInput').addEventListener('change', async e=>{
     toast(`Imported ${added} new reading${added===1?'':'s'}${updated?`, updated ${updated} already in the log`:''}${dup?`, ${dup} unchanged`:''}${fileDup?`, ${fileDup} repeated row${fileDup===1?'':'s'} in the file skipped`:''}${bad.length?`, ${bad.length} row${bad.length===1?'':'s'} unreadable (${bad.slice(0,5).join(', ')}${bad.length>5?'…':''})`:''}.`);
   }catch(err){ $('#importErr').textContent=err.message||'Could not read this file.'; }
 });
-const CSV_HEAD=['date','time','systolic','diastolic','pulse','device','measurement','count','weight','medicine taken','medicine','activity','activity time','activity note','notes'];
+const CSV_HEAD=['date','time','systolic','diastolic','pulse','device','measurement','count','weight','medicine taken','medicine','activity yesterday','activity yesterday note','activity same day','activity same day time','activity same day note','notes'];
 const csvCell=v=>{ const s=String(v??''); return /[",\n;]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
-function toCSV(list){ return [CSV_HEAD.join(',')].concat(list.map(r=>[r.dt.slice(0,10),r.dt.slice(11,16),r.sys,r.dia,r.hr??'',r.device,r.mode,r.mode==='average'?(r.count||''):1,r.weight??'',r.med?'yes':'no',r.medicine,r.activity?'yes':'no',r.activityTime||'',r.activityNote,r.notes].map(csvCell).join(','))).join('\n'); }
+function toCSV(list){ return [CSV_HEAD.join(',')].concat(list.map(r=>[r.dt.slice(0,10),r.dt.slice(11,16),r.sys,r.dia,r.hr??'',r.device,r.mode,r.mode==='average'?(r.count||''):1,r.weight??'',r.med?'yes':'no',r.medicine,r.actPrev==null?'':r.actPrev?'yes':'no',r.actPrevNote,r.activity?'yes':'no',r.activityTime||'',r.activityNote,r.notes].map(csvCell).join(','))).join('\n'); }
 async function offer(filename, data){
   try{
     const type=filename.endsWith('.pdf')?'application/pdf':filename.endsWith('.json')?'application/json':'text/csv';
@@ -1131,7 +1462,7 @@ async function offer(filename, data){
   }catch(e){ toast('Could not save the file.'); return false; }
 }
 const today=()=>toDT(new Date()).slice(0,10);
-$('#templateBtn').onclick=()=>offer('blood-pressure-template.csv', CSV_HEAD.join(',')+'\n2026-09-29,07:45,128,82,64,Omron M3 left arm,average,3,78.4,yes,Ramipril 5 mg,yes,08:15,40 min walk,\n');
+$('#templateBtn').onclick=()=>offer('blood-pressure-template.csv', CSV_HEAD.join(',')+'\n2026-09-29,07:45,128,82,64,Omron M3 left arm,average,3,78.4,yes,Ramipril 5 mg,yes,40 min walk,,,,\n');
 $('#exportCsv').onclick=()=>{ if(!state.readings.length) return toast('No readings to export yet.'); offer(`blood-pressure-${today()}.csv`, toCSV(state.readings)); };
 $('#exportJson').onclick=()=>{ if(!state.readings.length) return toast('No readings to export yet.'); offer(`blood-pressure-backup-${today()}.json`, JSON.stringify({app:'bp-log',version:1,exported:new Date().toISOString(),readings:state.readings},null,1)); };
 $('#wipeBtn').onclick=async()=>{
@@ -1191,6 +1522,7 @@ function buildPdf(all, list, o){
     const ws=fr.map(f=>f*CW), rh=6.4;
     const head=()=>{ ensure(rh*2); doc.setFillColor(238,242,246); doc.rect(M,y,CW,rh,'F'); font('bold',8.3,MUTED); let x=M; heads.forEach((h,i)=>{ txt(h,x,ws[i],al[i]); x+=ws[i]; }); y+=rh; };
     const txt=(s,x,w,a)=>{ s=String(s); while(s.length>1&&doc.getTextWidth(s)>w-3) s=s.slice(0,-2)+'…'; const ty=y+rh/2+1.1; if(a==='r') doc.text(s,x+w-1.5,ty,{align:'right'}); else doc.text(s,x+1.5,ty); };
+    ensure(rh*(Math.min(rows.length,6)+1)+2);   // keep short tables together
     head();
     rows.forEach(r=>{
       if(y+rh>BOTTOM){ doc.addPage(); y=18; head(); }
@@ -1202,29 +1534,66 @@ function buildPdf(all, list, o){
   const pct=s=>s.n?Math.round(s.high/s.n*100)+'%':'–';
   const bp=s=>s.sys.n?`${r0(s.sys.mean)}/${r0(s.dia.mean)}`:'–';
   const bpsd=s=>s.sys.n>1?`±${r0(s.sys.sd)}/±${r0(s.dia.sd)}`:'–';
-  const gRows=groups=>groups.map(g=>{ const s=summarize(g.list); return {cells:[(g.sub?'   ':'')+g.label, s.n, bp(s), bpsd(s), r0(s.hr.mean), pctOf(s.hiS,s.n), pctOf(s.hiD,s.n)]}; });
+  const gRows=groups=>groups.map(g=>{ const s=summarize(g.list); return {cells:[(g.sub?'   ':'')+g.label, s.n, bp(s), bpsd(s), r0(s.hr.mean), pctOf(s.hiS,s.n), pctOf(s.hiD,s.n)], bold:g.bold}; });
   const gHead=first=>[first,'Readings','Mean BP (mmHg)','SD','Pulse','SYS >= 135','DIA >= 85'];
   const gFr=[.31,.11,.16,.12,.08,.11,.11], gAl=['l','r','r','r','r','r','r'];
 
   const partTitle=(t,sub)=>{ ensure(30); y+=4; doc.setFillColor(31,78,140); doc.rect(M,y-5.5,2.2,sub?13:7.5,'F'); font('bold',15); doc.text(t,M+5,y); if(sub){ y+=6; font('normal',9.5,MUTED); doc.text(sub,M+5,y); } y+=6; };
   const range=l=>`${numDate(l[0].dt)} to ${numDate(l[l.length-1].dt)}`;
   const periodFirst=o.order==='period', allNo=periodFirst?2:1, perNo=periodFirst?1:2;
-  const pdfColors={sys:'#B8324B',dia:'#2B7A8B',hr:'#A0701A',grid:'#DCE2EA',text:'#5A6678'};
+  const pdfColors={sys:'#B8324B',dia:'#2B7A8B',hr:'#A0701A',pp:'#1F4E8C',grid:'#DCE2EA',text:'#5A6678'};
 
-  function statsBlock(L, P, scope){
-    const S=summarize(L), dl=days(L);
-    h2(`${P}.1 Summary`);
+  const lineImg=(lines,title,opts,ratio)=>{
+    const cv=document.createElement('canvas'), cw=1700, ch=Math.round(cw*(ratio||0.3)); cv.width=cw; cv.height=ch;
+    const cctx=cv.getContext('2d'); cctx.scale(2,2);
+    drawLines(cctx,cw/2,ch/2,lines(pdfColors),Object.assign({colors:pdfColors,fill:'#FFFFFF',font:'13px Helvetica, Arial, sans-serif'},opts));
+    const ih=CW*ch/cw; ensure(ih+14);
+    font('bold',10); doc.text(title,M,y); y+=3;
+    doc.addImage(cv.toDataURL('image/jpeg',0.92),'JPEG',M,y,CW,ih,undefined,'FAST'); y+=ih+4;
+  };
+  const h3=t=>{ ensure(16); y+=1; font('bold',10); doc.text(t,M,y); y+=4.5; };
+  const legend=(items,extra)=>{ let lx=M; font('normal',8.3,MUTED);
+    items.forEach(([t,c,thin])=>{ doc.setFillColor(...c); doc.rect(lx,y-(thin?1.2:1.6),5,thin?.7:1.4,'F'); doc.text(t,lx+6.5,y); lx+=doc.getTextWidth(t)+14; });
+    if(extra) doc.text(extra,lx,y); y+=6; };
+  const dlAll=days(all);
+
+  // Returns the number of the last subsection written, so a section can continue the numbering.
+  function statsBlock(L, P, scope, clip){
+    let k=0; const sec=t=>h2(`${P}.${++k} ${t}`);
+    const S=summarize(L), dl=days(L), T=trend(L), AY=actYestFn();
+    const r7=rolling(dlAll,7,3,clip&&clip[0],clip&&clip[1]), r30=rolling(dlAll,30,10,clip&&clip[0],clip&&clip[1]);
+
+    sec('Summary');
     table(['Measure','Mean','SD','Min','Max','Readings'],
-      [['Systolic (mmHg)',S.sys],['Diastolic (mmHg)',S.dia],['Pulse pressure (mmHg)',S.pp],['Mean arterial pressure (mmHg)',S.map],['Pulse (bpm)',S.hr]].map(([l,s])=>({cells:[l, s.n?r0(s.mean):'–', s.n>1?r1(s.sd):'–', s.n?r0(s.min):'–', s.n?r0(s.max):'–', s.n]})),
+      [['Systolic (mmHg)',S.sys],['Diastolic (mmHg)',S.dia],['Pulse pressure (mmHg)',S.pp],['Mean arterial pressure (mmHg)',S.map],['Pulse (bpm)',S.hr],['Rate-pressure product (mmHg x bpm)',S.rpp,true]].map(([l,s,big])=>({cells:[l, s.n?r0(s.mean):'–', s.n>1?(big?r0(s.sd):r1(s.sd)):'–', s.n?r0(s.min):'–', s.n?r0(s.max):'–', s.n]})),
       [.34,.13,.13,.13,.13,.14],['l','r','r','r','r','r']);
     para(`Readings at or above 135/85 mmHg: ${S.high} of ${S.n} (${pct(S)}). Systolic at or above 135: ${S.hiS} (${pctOf(S.hiS,S.n)}); diastolic at or above 85: ${S.hiD} (${pctOf(S.hiD,S.n)}). ${S.n} readings on ${dl.length} days.`,9);
     if(o.compare && o.compare!==L){
       const A=summarize(o.compare), ds=S.sys.mean-A.sys.mean, dd=S.dia.mean-A.dia.mean, dh=S.hr.mean-A.hr.mean;
-      const sg=v=>(Math.round(v)>0?'+':'')+Math.round(v);
-      para(`Compared with all data (section ${allNo}): systolic ${sg(ds)} mmHg, diastolic ${sg(dd)} mmHg${A.hr.n&&S.hr.n?`, pulse ${sg(dh)} bpm`:''}; systolic at or above 135: ${pctOf(S.hiS,S.n)} vs ${pctOf(A.hiS,A.n)}; diastolic at or above 85: ${pctOf(S.hiD,S.n)} vs ${pctOf(A.hiD,A.n)}.`,9);
+      para(`Compared with all data (section ${allNo}): systolic ${sgn0(ds)} mmHg, diastolic ${sgn0(dd)} mmHg${A.hr.n&&S.hr.n?`, pulse ${sgn0(dh)} bpm`:''}; systolic at or above 135: ${pctOf(S.hiS,S.n)} vs ${pctOf(A.hiS,A.n)}; diastolic at or above 85: ${pctOf(S.hiD,S.n)} vs ${pctOf(A.hiD,A.n)}.`,9);
     }
 
-    h2(`${P}.2 Progression`);
+    sec('Home blood pressure by the ESH 7-day protocol');
+    const W=eshWeeks(L);
+    if(W.length){
+      const w=W[0];
+      para(`Most recent qualifying week: ${numDate(w.first)} to ${numDate(w.end)} (${numDate(w.start)} discarded as day 1). Mean ${r0(w.s.sys.mean)}/${r0(w.s.dia.mean)} mmHg${w.s.hr.n?`, pulse ${r0(w.s.hr.mean)} bpm`:''}, from ${w.s.n} morning and evening readings (${w.meas} measurements) on ${w.days} days, ${w.both} of them with both. This is ${eshHigh(w)?'at or above':'below'} the 135/85 mmHg home threshold.`);
+      table(['Week (days counted)','Readings','Days AM+PM','Mean BP (mmHg)','Pulse','vs 135/85'],
+        W.slice(0,12).map(x=>{ const h=eshHigh(x); return {cells:[`${numDate(x.first)} to ${numDate(x.end)}`, x.s.n, x.both, bp(x.s), r0(x.s.hr.mean), h?'At or above':'Below'], hi:[0,0,0,h,0,h]}; }),
+        [.32,.12,.13,.17,.09,.17],['l','r','r','r','r','r']);
+      if(W.length>12) para(`${W.length} qualifying weeks in total; the 12 most recent are shown.`,8.3,MUTED);
+    } else para(`No 7-day window in ${scope} meets the protocol.`,9,MUTED);
+    para('Protocol (European Society of Hypertension): readings in the morning (05:00-11:59) and evening (18:00-04:59) on 7 consecutive days; day 1 is discarded and the rest are averaged. A week is used here when at least 3 of the remaining 6 days have both morning and evening readings and there are at least 12 measurements (a reading entered as the average of several counts as that many). Weeks do not overlap; the most recent comes first.',8.3,MUTED);
+
+    sec('Time in target range');
+    const R=ttr(dl);
+    para(`Target: daily average below ${R.T.sys}/${R.T.dia} mmHg; a daily average systolic below ${LOW_SYS} counts as low. Of ${R.n} days with readings, ${R.c.in} were in target (${pctOf(R.c.in,R.n)}), ${R.c.above} above (${pctOf(R.c.above,R.n)}) and ${R.c.low} low (${pctOf(R.c.low,R.n)}).`);
+    para(`Longest run of consecutive days in target: ${runText(R.bestIn)}. Longest run above target: ${runText(R.bestAbove)}.${R.current?` Latest run: ${R.current.len} day${R.current.len===1?'':'s'} ${catName(R.current.k)}.`:''} A day without readings ends a run.`,9);
+    table(['Month','Days','In target','Above target','Low'],
+      R.months.map(m=>({cells:[m.label, m.n, `${m.in} (${pctOf(m.in,m.n)})`, `${m.above} (${pctOf(m.above,m.n)})`, `${m.low} (${pctOf(m.low,m.n)})`]})),
+      [.24,.12,.22,.22,.2],['l','r','r','r','r']);
+
+    sec('Progression');
     const rawPts=L.map(r=>({t:parseDT(r.dt).getTime(), sys:r.sys, dia:r.dia, hr:r.hr}));
     const pdom=chartDomain(rawPts);
     const chartImg=(pts,title)=>{
@@ -1237,29 +1606,66 @@ function buildPdf(all, list, o){
     };
     chartImg(rawPts,`Every reading (${L.length})`);
     chartImg(dailyPts(dl),`Daily averages (${dl.length} days)`);
-    const lg=[['Systolic',[184,50,75]],['Diastolic',[43,122,139]],['Pulse (right axis)',[160,112,26]]]; let lx=M; font('normal',8.3,MUTED);
-    lg.forEach(([t,c])=>{ doc.setFillColor(...c); doc.rect(lx,y-1.6,5,1.4,'F'); doc.text(t,lx+6.5,y); lx+=doc.getTextWidth(t)+14; });
-    doc.text('Dashed lines: 135 and 85 mmHg. Both charts share the same scale.',lx,y); y+=6;
+    legend([['Systolic',[184,50,75]],['Diastolic',[43,122,139]],['Pulse (right axis)',[160,112,26]]],'Dashed lines: 135 and 85 mmHg. Both charts share the same scale.');
+    lineImg(c=>rollLines(r7,r30,c),'Rolling averages',{refs:[[135,'sys'],[85,'dia']],empty:'Not enough days for rolling averages'});
+    legend([['30-day average',[90,102,120]],['7-day average',[90,102,120],true]],'Dashed lines: 135 and 85 mmHg.');
+    para(`Latest 7-day average: ${rollText(lastPt(r7,'sys'))}. Latest 30-day average: ${rollText(lastPt(r30,'sys'))}. Each point averages the daily averages of the previous 7 or 30 calendar days, shown when at least 3 (7-day) or 10 (30-day) of those days have readings.`,8.8,MUTED);
 
-    h2(`${P}.3 Monthly averages and trend`);
-    para(trendText(trend(L),true));
+    sec('Monthly averages and trend');
+    para(trendText(T,true));
     table(['Month','Readings','Days','Mean BP','SD','Pulse pr.','Mean art.','Pulse','SYS >= 135','DIA >= 85'],
       monthly(L).map(m=>({cells:[m.label,m.s.n,m.days,bp(m.s),bpsd(m.s),r0(m.s.pp.mean),r0(m.s.map.mean),r0(m.s.hr.mean),pctOf(m.s.hiS,m.s.n),pctOf(m.s.hiD,m.s.n)]})),
       [.11,.1,.06,.11,.11,.1,.1,.08,.115,.115],['l','r','r','r','r','r','r','r','r','r']);
     para('Pulse pressure = systolic minus diastolic. Mean arterial pressure = diastolic + one third of pulse pressure. The trend is a straight line through daily averages, so every day counts equally however many readings it has.',8.3,MUTED);
 
-    h2(`${P}.4 Blood pressure by time of day`);
+    sec('Variability');
+    const V=variability(L,dl);
+    table(['Measure','SD readings','CV readings','SD daily avg.','CV daily avg.','ARV','Day pairs'],
+      V.map(v=>({cells:[v.label, v.R.n>1?r1(v.R.sd):'–', v.rcv!=null?r1(v.rcv)+'%':'–', v.D.n>1?r1(v.D.sd):'–', v.dcv!=null?r1(v.dcv)+'%':'–', v.arv!=null?r1(v.arv):'–', v.pairs]})),
+      [.16,.13,.13,.14,.14,.14,.16],['l','r','r','r','r','r','r']);
+    para('SD = standard deviation (mmHg; bpm for pulse), for single readings and for daily averages. CV = coefficient of variation, the SD as a percentage of the mean, so periods with different average levels can be compared. ARV = average real variability: the average absolute change between daily averages on consecutive calendar days ("day pairs"). Unlike the SD, it reflects how much values jump from one day to the next.',8.3,MUTED);
+
+    sec('Blood pressure by time of day');
     table(gHead('Time of day'), gRows(PERIODS.map(([k,l,h])=>({label:`${l} (${h})`, list:L.filter(r=>period(r)===k)}))), gFr, gAl);
     const mo=summarize(L.filter(r=>period(r)==='morning')), ev=summarize(L.filter(r=>period(r)==='evening'));
-    if(mo.n&&ev.n) para(`Morning minus evening difference: ${Math.round(mo.sys.mean-ev.sys.mean)>0?'+':''}${Math.round(mo.sys.mean-ev.sys.mean)}/${Math.round(mo.dia.mean-ev.dia.mean)>0?'+':''}${Math.round(mo.dia.mean-ev.dia.mean)} mmHg.`,8.8,MUTED);
+    if(mo.n&&ev.n) para(`Morning minus evening difference: ${sgn0(mo.sys.mean-ev.sys.mean)}/${sgn0(mo.dia.mean-ev.dia.mean)} mmHg.`,8.8,MUTED);
 
-    h2(`${P}.5 Medication`);
+    sec('Day of week and weekends');
+    table(gHead('Day'), gRows(dowGroups(L)), gFr, gAl);
+    const dn=diffNote(L.filter(isWeekend), L.filter(r=>!isWeekend(r)), 'Weekend', 'weekdays'); if(dn) para(dn,8.8,MUTED);
+
+    sec('Seasonal pattern');
+    table(gHead('Season and month'), gRows(seasonGroups(L)), gFr, gAl);
+    para(seasonNote(L),8.8,MUTED);
+
+    sec('Resting pulse and rate-pressure product');
+    if(S.hr.n){
+      const FL=firstLast30(dl,'hr'), mp=st(L.filter(r=>period(r)==='morning').map(r=>r.hr));
+      para(`Pulse taken with the blood pressure readings, at rest: mean ${r0(S.hr.mean)} bpm (SD ${r1(S.hr.sd)}, range ${r0(S.hr.min)} to ${r0(S.hr.max)}) from ${S.hr.n} readings; morning mean ${mp.n?r0(mp.mean)+' bpm':'–'}. Trend: ${T&&T.hr!=null?sgn1(T.hr,true)+' bpm per year':'not enough data'}.${FL?` First 30 days ${r0(FL.a)} bpm, last 30 days ${r0(FL.b)} bpm.`:''}`);
+      lineImg(c=>seriesLines(dl,r30,'hr',c.hr),'Pulse: daily averages (dots) and 30-day average (line)',{step:5},0.26);
+      table(['Time of day','With pulse','Mean pulse (bpm)','Mean RPP','RPP SD'],
+        pulseByPeriod(L).map(x=>({cells:[x.label, x.n, r0(x.hr.mean), r0(x.rpp.mean), x.rpp.n>1?r0(x.rpp.sd):'–'], bold:x.bold})),
+        [.28,.14,.2,.2,.18],['l','r','r','r','r']);
+      para(`Rate-pressure product (RPP) = systolic x pulse. It is a rough index of how hard the heart is working and rises with either blood pressure or heart rate. Trend: ${T&&T.rpp!=null?sgn0(T.rpp)+' per year':'not enough data'}.`,8.3,MUTED);
+    } else para(`No pulse recorded in ${scope}.`,9,MUTED);
+
+    sec('Pulse pressure and age');
+    const dob=validDob(o.dob,all), FLp=firstLast30(dl,'pp');
+    para(`Pulse pressure (systolic minus diastolic): mean ${r0(S.pp.mean)} mmHg (SD ${r1(S.pp.sd)}). Trend: ${T&&T.pp!=null?sgn1(T.pp,true)+' mmHg per year'+(dob?', which is the change per year of age':''):'not enough data'}.${FLp?` First 30 days ${r0(FLp.a)} mmHg, last 30 days ${r0(FLp.b)} mmHg.`:''}${dob?` Age during ${scope}: ${ageYears(L[0].dt.slice(0,10),dob)} to ${ageYears(L[L.length-1].dt.slice(0,10),dob)}.`:''}`);
+    lineImg(c=>seriesLines(dl,r30,'pp',c.pp),'Pulse pressure: daily averages (dots) and 30-day average (line)',{step:5,refs:[[60,'text']]},0.26);
+    if(dob) table(['Age','Readings','From','To','Mean PP','PP SD','Mean BP'],
+      ageGroups(L,dob).map(a=>({cells:[a.age, a.s.n, numDate(a.first), numDate(a.last), r0(a.s.pp.mean), a.s.pp.n>1?r1(a.s.pp.sd):'–', bp(a.s)]})),
+      [.1,.12,.17,.17,.13,.13,.18],['l','r','r','r','r','r','r']);
+    else para('Date of birth not given, so pulse pressure cannot be shown by age.',9,MUTED);
+    para('Pulse pressure tends to widen with age as the large arteries stiffen. Dashed line: 60 mmHg, which guidelines treat as a sign of arterial stiffening in older people; it is an office threshold, so only a rough guide for home readings.',8.3,MUTED);
+
+    sec('Medication');
     table(gHead('Medicine'), gRows(medGroups(L)), gFr, gAl);
-    const meds=new Map(); L.filter(r=>r.med).forEach(r=>{ const k=r.medicine||'Not specified'; const d=r.dt.slice(0,10); const m=meds.get(k)||{first:d,last:d,days:new Set()}; if(d<m.first)m.first=d; if(d>m.last)m.last=d; m.days.add(d); meds.set(k,m); });
-    if(meds.size) table(['Medicine','First recorded','Last recorded','Days recorded'],[...meds].map(([k,m])=>({cells:[k,numDate(m.first),numDate(m.last),m.days.size]})),[.4,.2,.2,.2],['l','r','r','r']);
+    const meds=new Map(); L.filter(r=>r.med).forEach(r=>{ const kk=r.medicine||'Not specified'; const d=r.dt.slice(0,10); const m=meds.get(kk)||{first:d,last:d,days:new Set()}; if(d<m.first)m.first=d; if(d>m.last)m.last=d; m.days.add(d); meds.set(kk,m); });
+    if(meds.size) table(['Medicine','First recorded','Last recorded','Days recorded'],[...meds].map(([kk,m])=>({cells:[kk,numDate(m.first),numDate(m.last),m.days.size]})),[.4,.2,.2,.2],['l','r','r','r']);
     else para(`No medicine intake recorded in ${scope}.`,9,MUTED);
 
-    h2(`${P}.6 Weight`);
+    sec('Weight');
     const wd=dl.filter(d=>d.weight!=null);
     if(wd.length){
       const ws=st(wd.map(d=>d.weight)), chg=wd[wd.length-1].weight-wd[0].weight;
@@ -1268,15 +1674,24 @@ function buildPdf(all, list, o){
       table(gHead('Weight band'), gRows(weightBands(dl)), gFr, gAl);
     } else para(`No weight recorded in ${scope}.`,9,MUTED);
 
-    h2(`${P}.7 Physical activity`);
-    const act=dl.filter(d=>d.activity), noact=dl.filter(d=>!d.activity);
-    para(`Activity recorded on ${act.length} of ${dl.length} days. Readings are grouped by when they were taken relative to that day's activity time.`);
+    sec('Physical activity the day before');
+    const AD=activeDays(L,AY);
+    para(`${AD.size} of ${dl.length} days with readings followed a day with physical activity. Readings are grouped by whether the previous day was active; days without the mark count as rest days.`);
     table(gHead('Reading taken'), gRows(activityGroups(L)), gFr, gAl);
+    const an=activityNote(L); if(an) para(an,8.8,MUTED);
 
-    h2(`${P}.8 Devices and measurement method`);
-    const dev=new Map(); L.forEach(r=>{ const k=r.device||'Not specified'; if(!dev.has(k)) dev.set(k,[]); dev.get(k).push(r); });
-    table(gHead('Device'), gRows([...dev].map(([k,l])=>({label:k,list:l}))), gFr, gAl);
+    sec('Devices, measurement method and agreement');
+    const dev=new Map(); L.forEach(r=>{ const kk=r.device||'Not specified'; if(!dev.has(kk)) dev.set(kk,[]); dev.get(kk).push(r); });
+    table(gHead('Device'), gRows([...dev].map(([kk,l])=>({label:kk,list:l}))), gFr, gAl);
     table(gHead('Method'), gRows([{label:'Single measurement',list:L.filter(r=>r.mode==='single')},{label:'Average of several measurements',list:L.filter(r=>r.mode==='average')}]), gFr, gAl);
+    h3('Agreement between devices');
+    const DA=deviceAgreement(L);
+    if(DA.length) table(['Devices (first - second)','Pairs','SYS diff','SYS 95% limits','DIA diff','DIA 95% limits','Pulse diff'],
+      DA.map(d=>({cells:[`${d.A} - ${d.B}`, d.n, sgn1(d.sys.mean,true), loa(d.sys), sgn1(d.dia.mean,true), loa(d.dia), d.hr.n?sgn1(d.hr.mean,true):'–']})),
+      [.27,.08,.11,.15,.11,.15,.13],['l','r','r','r','r','r','r']);
+    else para('No readings taken on two different devices within 15 minutes of each other.',9,MUTED);
+    para('Readings from two devices taken within 15 minutes of each other are paired, closest first, each reading used once. Diff = first device minus second, on average (mmHg; bpm for pulse). The 95% limits of agreement (Bland-Altman) are the range expected to contain 95% of single differences: a small average difference with wide limits means the devices agree on average but often disagree on individual readings. Fewer than 10 pairs gives unreliable limits.',8.3,MUTED);
+    return k;
   }
 
   // Title block
@@ -1284,7 +1699,8 @@ function buildPdf(all, list, o){
   font('normal',9.5,MUTED); doc.text('Patient-recorded home measurements',M,y); y+=8;
   const info=[['Patient',o.patient||'Not given'],['Date of birth',o.dob?numDate(o.dob):'Not given'],['Report created',numDate(today())],
     ...[[`Section ${allNo}`,`All data: ${range(all)}, ${all.length} readings`],
-    [`Section ${perNo}`,`Selected period: ${numDate(o.from)} to ${numDate(o.to)}, ${list.length} readings, with every reading listed`]].sort((a,b)=>a[0]<b[0]?-1:1)];
+    [`Section ${perNo}`,`Selected period: ${numDate(o.from)} to ${numDate(o.to)}, ${list.length} readings, with every reading listed`]].sort((a,b)=>a[0]<b[0]?-1:1),
+    ['Target range',`Daily average below ${target().sys}/${target().dia} mmHg (used for time in target range)`]];
   info.forEach(([k,v])=>{ font('bold',9.5); doc.text(k,M,y); font('normal',9.5); const ls=doc.splitTextToSize(String(v),CW-34); doc.text(ls,M+34,y); y+=5.2*ls.length; });
   y+=1;
   para('Reference: 135/85 mmHg is the home blood pressure threshold used in the European Society of Hypertension guidelines. A reading entered as the average of several measurements taken in a row counts as one reading. SD = standard deviation. The SYS >= 135 and DIA >= 85 columns give the share of readings with systolic at or above 135 and with diastolic at or above 85; a reading can count in both.',8.5,MUTED);
@@ -1293,22 +1709,23 @@ function buildPdf(all, list, o){
   function allSection(){
     partTitle(`Section ${allNo}. All data`, `${range(all)} · ${all.length} readings on ${days(all).length} days`);
     o.compare=null;
-    statsBlock(all,String(allNo),'the data');
+    statsBlock(all,String(allNo),'the data',null);
   }
   function periodSection(){
     const P=perNo;
     partTitle(`Section ${P}. Selected period`, `${numDate(o.from)} to ${numDate(o.to)} · ${list.length} readings on ${days(list).length} days`);
     o.compare=all;
-    statsBlock(list,String(P),'this period');
+    let k=statsBlock(list,String(P),'this period',[o.from,o.to]);
+    const AY=actYestFn();
 
-    h2(`${P}.9 All readings in the period (${list.length})`);
-    table(['Date','Time','SYS','DIA','Pulse','Type','Device','Kg','Medicine','Activity'],
-      list.map(r=>({cells:[numDate(r.dt),r.dt.slice(11,16),r.sys,r.dia,r.hr??'–',countLabel(r,true),r.device||'–',r.weight!=null?r1(r.weight):'–',r.med?(r.medicine||'Yes'):'–',actLabel(r)], hi:[0,0,r.sys>=135,r.dia>=85]})),
-      [.12,.07,.06,.06,.07,.08,.17,.07,.18,.12],['l','l','r','r','r','l','l','r','l','l']);
+    h2(`${P}.${++k} All readings in the period (${list.length})`);
+    table(['Date','Time','SYS','DIA','Pulse','Type','Device','Kg','Medicine','Act. yesterday'],
+      list.map(r=>({cells:[numDate(r.dt),r.dt.slice(11,16),r.sys,r.dia,r.hr??'–',countLabel(r,true),r.device||'–',r.weight!=null?r1(r.weight):'–',r.med?(r.medicine||'Yes'):'–',actLabel(r,AY)], hi:[0,0,r.sys>=135,r.dia>=85]})),
+      [.12,.07,.06,.06,.07,.08,.15,.07,.17,.15],['l','l','r','r','r','l','l','r','l','l']);
     para('Values at or above 135 systolic or 85 diastolic are shown in red.',8.3,MUTED);
     const withNotes=list.filter(r=>r.notes);
     if(withNotes.length){
-      h2(`${P}.10 Notes recorded with readings`);
+      h2(`${P}.${++k} Notes recorded with readings`);
       table(['Date','Time','Reading','Note'], withNotes.map(r=>({cells:[numDate(r.dt),r.dt.slice(11,16),`${r.sys}/${r.dia}`,r.notes]})),[.14,.09,.12,.65],['l','l','r','l']);
     }
   }
