@@ -180,7 +180,7 @@ legend{padding:0 6px;font-weight:600;font-size:.9rem}
     </div>
   </div>
   <main id="main"></main>
-  <p class="small muted" style="margin-top:48px;text-align:center">Blood pressure log · version 15 Oct 2026 (8)</p>
+  <p class="small muted" style="margin-top:48px;text-align:center">Blood pressure log · version 15 Oct 2026 (9)</p>
 </div>
 
 <!-- Reading form -->
@@ -207,8 +207,9 @@ legend{padding:0 6px;font-weight:600;font-size:.9rem}
         <div style="display:flex;gap:8px"><input type="text" id="f_newmed" placeholder="Add a new medicine, e.g. Ramipril 5 mg" style="flex:1;min-width:0" aria-label="New medicine name"><button class="btn" id="addMedBtn" type="button">Add</button></div>
       </div>
       <label class="check full"><input type="checkbox" id="f_act"> Physical activity yesterday</label>
-      <div class="full" id="actWrap">
-        <label>What did you do yesterday? (optional)<input type="text" id="f_actnote" placeholder="e.g. 40 min brisk walk"></label>
+      <div class="full" id="actWrap" style="gap:12px">
+        <label style="flex:1">What did you do yesterday? (optional)<input type="text" id="f_actnote" placeholder="e.g. brisk walk"></label>
+        <label style="width:120px">Minutes (optional)<input type="number" id="f_actmin" min="1" max="1440" inputmode="numeric"></label>
       </div>
       <label class="full">Notes (optional)<textarea id="f_notes" rows="2"></textarea></label>
     </div>
@@ -224,13 +225,26 @@ legend{padding:0 6px;font-weight:600;font-size:.9rem}
 <!-- Import -->
 <div class="modal" id="importModal" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="importTitle">
-    <h2 id="importTitle">Import past readings</h2>
+    <h2 id="importTitle">Import files</h2>
+    <h3 style="margin-bottom:6px">Blood pressure readings</h3>
     <p class="small">Load a CSV (from Excel, Google Sheets, or a device app) or a JSON backup from this dashboard. Columns are matched by name, in English or Italian: date, time, systolic, diastolic, pulse, device, measurement, count, weight, medicine taken, medicine, activity yesterday, activity yesterday note, notes. Dates like 29/09/2026 are read day first.</p>
     <div class="row-end" style="justify-content:flex-start">
       <input type="file" id="fileInput" accept=".csv,.json,.txt,.tsv">
     </div>
     <p class="small" style="margin-top:12px"><button class="btn link" id="templateBtn">Download a CSV template</button></p>
     <p class="err" id="importErr"></p>
+    <h3 style="margin:18px 0 6px;padding-top:16px;border-top:1px solid var(--line)">Past physical activity</h3>
+    <p class="small">A CSV with three columns: date, minutes, type of activity (for example 2026-03-04, 45, Cycling). Each activity is recorded as "physical activity yesterday" on the readings of the following day. Several activities on the same day are added together; 0 minutes counts as no activity. Durations like 1:15 or 1h 15m are read as hours and minutes.</p>
+    <fieldset style="margin-top:10px">
+      <legend>How to use the file</legend>
+      <label class="radio"><input type="radio" name="actMode" value="add" checked><span>Add to what is recorded<small>Readings after each activity day are marked. Nothing is removed and notes you typed are kept.</small></span></label>
+      <label class="radio"><input type="radio" name="actMode" value="replace"><span>The file is my complete activity log<small>Between the first and last date in the file, the file decides: readings after a day missing from the file are marked as after a rest day, and existing notes are replaced.</small></span></label>
+    </fieldset>
+    <div class="row-end" style="justify-content:flex-start;margin-top:0">
+      <input type="file" id="actFileInput" accept=".csv,.txt,.tsv">
+    </div>
+    <p class="small" style="margin-top:12px"><button class="btn link" id="actTemplateBtn">Download an activity template</button></p>
+    <p class="err" id="actErr"></p>
     <div class="row-end"><button class="btn" data-close>Close</button></div>
   </div>
 </div>
@@ -372,7 +386,7 @@ function norm(r){
   return { id:r.id||newId(), dt:r.dt, sys:+r.sys, dia:+r.dia, hr:num(r.hr),
     device:String(r.device||'').trim(), mode, count: mode==='average'?(num(r.count)||null):1,
     weight:num(r.weight), med:!!r.med, medicine:String(r.medicine||'').trim(),
-    actPrev:triState(r.actPrev), actPrevNote:String(r.actPrevNote||'').trim(),
+    actPrev:triState(r.actPrev), actPrevNote:String(r.actPrevNote||'').trim(), actPrevMin:num(r.actPrevMin)>0?Math.round(num(r.actPrevMin)):null,
     activity:!!r.activity, activityTime:normTime(r.activityTime), activityNote:String(r.activityNote||'').trim(), notes:String(r.notes||'').trim() };
 }
 const sortReadings = () => state.readings.sort((a,b)=> a.dt<b.dt?-1:a.dt>b.dt?1:0);
@@ -391,7 +405,7 @@ const G={ token:null, exp:0, sheetId:lsGet('bp.sheetId')||'', connected:false, l
 const clientId=()=>(lsGet('bp.clientId')||DEFAULT_CLIENT_ID||'').trim();
 try{ const t=JSON.parse(sessionStorage.getItem('bp.gtoken')||'null'); if(t&&t.exp>Date.now()+120000){ G.token=t.token; G.exp=t.exp; } }catch(e){}
 const headRow=()=>['id',...CSV_HEAD];
-const rowOf=r=>[r.id,r.dt.slice(0,10),r.dt.slice(11,16),r.sys,r.dia,r.hr??'',r.device,r.mode,r.mode==='average'?(r.count||''):1,r.weight??'',r.med?'yes':'no',r.medicine,r.actPrev==null?'':r.actPrev?'yes':'no',r.actPrevNote,r.activity?'yes':'no',r.activityTime||'',r.activityNote,r.notes];
+const rowOf=r=>[r.id,r.dt.slice(0,10),r.dt.slice(11,16),r.sys,r.dia,r.hr??'',r.device,r.mode,r.mode==='average'?(r.count||''):1,r.weight??'',r.med?'yes':'no',r.medicine,r.actPrev==null?'':r.actPrev?'yes':'no',r.actPrevNote,r.actPrevMin??'',r.activity?'yes':'no',r.activityTime||'',r.activityNote,r.notes];
 
 function waitGIS(){ return new Promise((res,rej)=>{ let n=0; (function chk(){ if(window.google&&google.accounts&&google.accounts.oauth2) return res(); if(++n>100) return rej(new Error('Google sign-in did not load. Check your connection and reload.')); setTimeout(chk,100); })(); }); }
 async function getToken(){
@@ -437,7 +451,7 @@ async function ensureSheet(){
 }
 async function readSheet(){
   const id=await ensureSheet();
-  const r=await gFetch(`${SHEETS}/${id}/values/${rng('Readings!A1:R')}`);
+  const r=await gFetch(`${SHEETS}/${id}/values/${rng('Readings!A1:S')}`);
   try{
     const st=await gFetch(`${SHEETS}/${id}/values/${rng('Settings!A1:B10')}`);
     (st.values||[]).forEach(([k,v])=>{ if(k==='patient') state.settings.patient=v||''; if(k==='dob') state.settings.dob=v||''; if(k==='medicines'&&v) state.settings.medicines=String(v).split('|').map(x=>x.trim()).filter(Boolean); if(k==='devices'&&v) state.settings.devices=String(v).split('|').map(x=>x.trim()).filter(Boolean); if(k==='target'&&v){ const m=/(\d+)\s*\/\s*(\d+)/.exec(v); if(m) state.settings.target={sys:+m[1],dia:+m[2]}; } });
@@ -452,7 +466,7 @@ async function writeSheet(){
   const have=new Set(state.readings.map(r=>r.id)); let pulled=0;
   remote.forEach(r=>{ if(!have.has(r.id)&&!G.deleted.has(r.id)){ state.readings.push(r); pulled++; } });
   if(pulled) sortReadings();
-  await gFetch(`${SHEETS}/${id}/values/${rng('Readings!A:R')}:clear`,{method:'POST',body:'{}'});
+  await gFetch(`${SHEETS}/${id}/values/${rng('Readings!A:S')}:clear`,{method:'POST',body:'{}'});
   await gFetch(`${SHEETS}/${id}/values/${rng('Readings!A1')}?valueInputOption=RAW`,{method:'PUT',body:JSON.stringify({values:[headRow(),...state.readings.map(rowOf)]})});
   return pulled;
 }
@@ -619,6 +633,7 @@ const dayNum=day=>Math.round(dayDate(day).getTime()/864e5);   // whole-day index
 function actYestFn(){
   const leg=new Map(); state.readings.forEach(r=>{ if(r.activity){ const d=r.dt.slice(0,10); if(!leg.has(d)||r.activityNote) leg.set(d,r.activityNote||''); } });
   const f=r=>r.actPrev!=null ? r.actPrev : leg.has(addDays(r.dt.slice(0,10),-1));
+  f.min=r=>r.actPrev===true&&r.actPrevMin!=null?r.actPrevMin:null;
   f.note=r=>r.actPrev!=null ? (r.actPrev?r.actPrevNote:'') : (leg.get(addDays(r.dt.slice(0,10),-1))||'');
   return f;
 }
@@ -639,7 +654,17 @@ function activityNote(list){
   if(!a.n||!b.n) return '';
   return `Mornings after an active day averaged ${r0(a.sys.mean)}/${r0(a.dia.mean)} mmHg (${a.n} readings), mornings after a rest day ${r0(b.sys.mean)}/${r0(b.dia.mean)} mmHg (${b.n} readings): a difference of ${sgn0(a.sys.mean-b.sys.mean)}/${sgn0(a.dia.mean-b.dia.mean)} mmHg.`;
 }
-const actLabel=(r,AY)=>{ AY=AY||actYestFn(); return AY(r)?(AY.note(r)||'Yes'):'–'; };
+const actLabel=(r,AY)=>{ AY=AY||actYestFn(); if(!AY(r)) return '–'; const m=AY.min(r); return [AY.note(r), m!=null?m+' min':''].filter(Boolean).join(', ')||'Yes'; };
+// Morning readings grouped by how long the previous day's activity lasted
+function durationGroups(list){
+  const AY=actYestFn(), A=activeDays(list,AY), mins=new Map(), day=r=>r.dt.slice(0,10);
+  list.forEach(r=>{ const m=AY.min(r); if(m!=null) mins.set(day(r),Math.max(mins.get(day(r))||0,m)); });
+  if(!mins.size) return [];
+  const band=r=>{ if(!A.has(day(r))) return 'rest'; const m=mins.get(day(r)); return m==null?'unknown':m<30?'lt30':m<=60?'30-60':'gt60'; };
+  const mo=list.filter(r=>period(r)==='morning');
+  return [['rest','After a rest day'],['lt30','After under 30 min'],['30-60','After 30 to 60 min'],['gt60','After over 60 min'],['unknown','Duration not recorded']]
+    .map(([k,l])=>({label:l, list:mo.filter(r=>band(r)===k)})).filter(g=>g.list.length);
+}
 
 /* ---------- ESH 7-day home monitoring protocol ---------- */
 // Windows of 7 calendar days; day 1 is discarded; morning and evening readings of days 2-7 are averaged.
@@ -1119,7 +1144,7 @@ function render(){
     // medication and activity the day before
     const AD=activeDays(list,AY), an=activityNote(list);
     html+=`<div class="grid2"><section class="panel"><div class="panel-head"><h2>Medicine</h2><span class="small muted">${list.filter(r=>r.med).length} readings with medicine taken</span></div>${groupTable(medGroups(list),'Group')}</section>`;
-    html+=panel('Physical activity the day before', `${AD.size} of ${dl.length} days after an active day`, groupTable(activityGroups(list),'Reading taken'),
+    html+=panel('Physical activity the day before', `${AD.size} of ${dl.length} days after an active day`, groupTable(activityGroups(list),'Reading taken')+(durationGroups(list).length?`<h3 style="margin:16px 0 6px">Mornings by yesterday's activity duration</h3>${groupTable(durationGroups(list),'Morning readings')}`:''),
       `${an?an+' ':''}Readings are grouped by whether you ticked "Physical activity yesterday"; days without the tick count as rest days. Readings saved before this option existed use the old same-day activity mark of the previous day.`)+'</div>';
     // weight
     const wd=dl.filter(d=>d.weight!=null);
@@ -1199,7 +1224,7 @@ let rT; window.addEventListener('resize',()=>{ clearTimeout(rT); rT=setTimeout(r
 try{ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',renderChart); }catch(e){}
 
 $('#addBtn').onclick=()=>openForm();
-$('#importBtn').onclick=()=>{ $('#importErr').textContent=''; $('#fileInput').value=''; openModal('importModal'); };
+$('#importBtn').onclick=()=>{ $('#importErr').textContent=''; $('#actErr').textContent=''; $('#fileInput').value=''; $('#actFileInput').value=''; openModal('importModal'); };
 $('#reportBtn').onclick=openReport;
 $('#settingsBtn').onclick=()=>{ updateSettingsUI(); renderDevManage(); renderMedManage(); const T=target(); $('#s_tsys').value=T.sys; $('#s_tdia').value=T.dia; $('#targetErr').textContent=''; openModal('settingsModal'); };
 ['s_tsys','s_tdia'].forEach(id=>$('#'+id).addEventListener('change',()=>{
@@ -1298,7 +1323,7 @@ function fillLists(){
 function syncFormVis(){
   $('#countWrap').style.display=$('#f_mode').value==='average'?'':'none';
   $('#medWrap').style.display=$('#f_med').checked?'':'none';
-  $('#actWrap').style.display=$('#f_act').checked?'':'none';
+  $('#actWrap').style.display=$('#f_act').checked?'flex':'none';
 }
 ['f_mode','f_med','f_act'].forEach(id=>$('#'+id).addEventListener('change',syncFormVis));
 $('#f_dt').addEventListener('change',()=>{ if(state.editing) return; prefillDay($('#f_dt').value.slice(0,10)); });
@@ -1307,7 +1332,7 @@ function prefillDay(day){
   const w=same.map(r=>r.weight).filter(v=>v!=null).pop();
   if(w!=null && !$('#f_weight').value) $('#f_weight').value=w;
   const AY=actYestFn();   // "yesterday" is the same for every reading of a day
-  if(same.some(AY)){ $('#f_act').checked=true; const n=same.map(AY.note).filter(Boolean).pop(); if(n&&!$('#f_actnote').value) $('#f_actnote').value=n; }
+  if(same.some(AY)){ $('#f_act').checked=true; const n=same.map(AY.note).filter(Boolean).pop(); if(n&&!$('#f_actnote').value) $('#f_actnote').value=n; const m=same.map(AY.min).filter(v=>v!=null).pop(); if(m!=null&&!$('#f_actmin').value) $('#f_actmin').value=m; }
   syncFormVis();
 }
 function openForm(r){
@@ -1318,7 +1343,7 @@ function openForm(r){
   const v=r||{dt:toDT(new Date()), sys:'', dia:'', hr:'', device:last?last.device:'', mode:last?last.mode:'single', count:last&&last.count>1?last.count:3, weight:'', med:last?last.med:false, medicine:last?last.medicine:'', notes:''};
   $('#f_dt').value=v.dt; $('#f_sys').value=v.sys; $('#f_dia').value=v.dia; $('#f_hr').value=v.hr??'';
   fillDeviceSelect(v.device); $('#f_mode').value=v.mode; $('#f_count').value=v.count||3; $('#f_weight').value=v.weight??'';
-  $('#f_med').checked=!!v.med; fillMedChecks(splitMeds(v.medicine)); $('#f_newmed').value=''; const AY=actYestFn(); $('#f_act').checked=r?AY(r):false; $('#f_actnote').value=r?AY.note(r):''; $('#f_notes').value=v.notes;
+  $('#f_med').checked=!!v.med; fillMedChecks(splitMeds(v.medicine)); $('#f_newmed').value=''; const AY=actYestFn(); $('#f_act').checked=r?AY(r):false; $('#f_actnote').value=r?AY.note(r):''; $('#f_actmin').value=r&&AY.min(r)!=null?AY.min(r):''; $('#f_notes').value=v.notes;
   if(!r) prefillDay(v.dt.slice(0,10));
   syncFormVis(); openModal('formModal');
   setTimeout(()=>$(r?'#f_dt':'#f_sys').focus(),30);
@@ -1335,8 +1360,9 @@ $('#saveReading').onclick=()=>{
   if(hr && (+hr<30||+hr>220)) return err('Heart rate should be between 30 and 220 bpm, or left empty.');
   if($('#f_newmed').value.trim()) return err('Press Add next to the new medicine name, or clear that box.');
   const w=g('f_weight').replace(',','.'); if(w && (isNaN(+w)||+w<20||+w>300)) return err('Weight should be in kilograms, between 20 and 300.');
+  if($('#f_act').checked&&g('f_actmin')&&!(+g('f_actmin')>=1&&+g('f_actmin')<=1440)) return err('Activity minutes should be between 1 and 1440, or left empty.');
   const rec=norm({id:state.editing?state.editing.id:undefined, dt:dt.slice(0,16), sys, dia, hr, device:($('#f_device').value==='__new'?'':$('#f_device').value), mode:$('#f_mode').value, count:g('f_count'), weight:w,
-    med:$('#f_med').checked, medicine:$('#f_med').checked?selectedMeds().join(' + '):'', actPrev:$('#f_act').checked, actPrevNote:$('#f_act').checked?g('f_actnote'):'',
+    med:$('#f_med').checked, medicine:$('#f_med').checked?selectedMeds().join(' + '):'', actPrev:$('#f_act').checked, actPrevNote:$('#f_act').checked?g('f_actnote'):'', actPrevMin:$('#f_act').checked?g('f_actmin'):null,
     activity:state.editing?state.editing.activity:false, activityTime:state.editing?state.editing.activityTime:'', activityNote:state.editing?state.editing.activityNote:'', notes:g('f_notes')});
   const months=new Set([rec.dt.slice(0,7)]);
   if(state.editing){ months.add(state.editing.dt.slice(0,7)); const i=state.readings.indexOf(state.editing); state.readings[i]=rec; }
@@ -1375,6 +1401,7 @@ const ALIASES={
   med:['medicine taken','medication taken','med taken','medication','meds','taken','farmaco preso','farmaco assunto','terapia'],
   medicine:['medicine','medicine name','drug','which medicine','farmaco','nome farmaco','medicinale'],
   actPrev:['activity yesterday','physical activity yesterday','exercise yesterday','active yesterday','attività ieri','attivita ieri','attività fisica ieri'],
+  actPrevMin:['activity yesterday minutes','activity yesterday min','minutes yesterday','minuti attività ieri'],
   actPrevNote:['activity yesterday note','activity yesterday notes','activity yesterday details','dettagli attività ieri'],
   activity:['activity same day','activity','physical activity','exercise','attività','attivita','attività fisica','sport'],
   activityTime:['activity same day time','activity time','time of activity','exercise time','ora attività','ora attivita','ora esercizio'],
@@ -1418,7 +1445,8 @@ function importRows(rows){
       medicine: medName || (medFlag && !truthy(medFlag) && !/^(n|no|false|0)$/i.test(medFlag) ? medFlag : ''),
       activity: g('activity')? (truthy(g('activity')) || (!/^(n|no|false|0)$/i.test(g('activity')))) : !!g('activityNote'),
       activityTime: g('activityTime'),
-      actPrev: g('actPrev') ? (truthy(g('actPrev')) || !/^(n|no|false|0|non?)$/i.test(g('actPrev'))) : (g('actPrevNote') ? true : null),
+      actPrev: g('actPrev') ? (truthy(g('actPrev')) || !/^(n|no|false|0|non?)$/i.test(g('actPrev'))) : (g('actPrevNote')||parseMinutes(g('actPrevMin')) ? true : null),
+      actPrevMin: parseMinutes(g('actPrevMin')),
       actPrevNote: g('actPrevNote') || (g('actPrev')&&!truthy(g('actPrev'))&&!/^(n|no|false|0|non?)$/i.test(g('actPrev'))?g('actPrev'):''),
       activityNote: g('activityNote') || (g('activity')&&!truthy(g('activity'))&&!/^(n|no|false|0)$/i.test(g('activity'))?g('activity'):''),
       notes:g('notes')}));
@@ -1449,9 +1477,9 @@ $('#fileInput').addEventListener('change', async e=>{
     toast(`Imported ${added} new reading${added===1?'':'s'}${updated?`, updated ${updated} already in the log`:''}${dup?`, ${dup} unchanged`:''}${fileDup?`, ${fileDup} repeated row${fileDup===1?'':'s'} in the file skipped`:''}${bad.length?`, ${bad.length} row${bad.length===1?'':'s'} unreadable (${bad.slice(0,5).join(', ')}${bad.length>5?'…':''})`:''}.`);
   }catch(err){ $('#importErr').textContent=err.message||'Could not read this file.'; }
 });
-const CSV_HEAD=['date','time','systolic','diastolic','pulse','device','measurement','count','weight','medicine taken','medicine','activity yesterday','activity yesterday note','activity same day','activity same day time','activity same day note','notes'];
+const CSV_HEAD=['date','time','systolic','diastolic','pulse','device','measurement','count','weight','medicine taken','medicine','activity yesterday','activity yesterday note','activity yesterday minutes','activity same day','activity same day time','activity same day note','notes'];
 const csvCell=v=>{ const s=String(v??''); return /[",\n;]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
-function toCSV(list){ return [CSV_HEAD.join(',')].concat(list.map(r=>[r.dt.slice(0,10),r.dt.slice(11,16),r.sys,r.dia,r.hr??'',r.device,r.mode,r.mode==='average'?(r.count||''):1,r.weight??'',r.med?'yes':'no',r.medicine,r.actPrev==null?'':r.actPrev?'yes':'no',r.actPrevNote,r.activity?'yes':'no',r.activityTime||'',r.activityNote,r.notes].map(csvCell).join(','))).join('\n'); }
+function toCSV(list){ return [CSV_HEAD.join(',')].concat(list.map(r=>[r.dt.slice(0,10),r.dt.slice(11,16),r.sys,r.dia,r.hr??'',r.device,r.mode,r.mode==='average'?(r.count||''):1,r.weight??'',r.med?'yes':'no',r.medicine,r.actPrev==null?'':r.actPrev?'yes':'no',r.actPrevNote,r.actPrevMin??'',r.activity?'yes':'no',r.activityTime||'',r.activityNote,r.notes].map(csvCell).join(','))).join('\n'); }
 async function offer(filename, data){
   try{
     const type=filename.endsWith('.pdf')?'application/pdf':filename.endsWith('.json')?'application/json':'text/csv';
@@ -1462,7 +1490,84 @@ async function offer(filename, data){
   }catch(e){ toast('Could not save the file.'); return false; }
 }
 const today=()=>toDT(new Date()).slice(0,10);
-$('#templateBtn').onclick=()=>offer('blood-pressure-template.csv', CSV_HEAD.join(',')+'\n2026-09-29,07:45,128,82,64,Omron M3 left arm,average,3,78.4,yes,Ramipril 5 mg,yes,40 min walk,,,,\n');
+$('#templateBtn').onclick=()=>offer('blood-pressure-template.csv', CSV_HEAD.join(',')+'\n2026-09-29,07:45,128,82,64,Omron M3 left arm,average,3,78.4,yes,Ramipril 5 mg,yes,Brisk walk,40,,,,\n');
+/* ---------- Import physical activity history ---------- */
+// A file with date, minutes, type. Activity on day D is recorded as "physical activity yesterday" on the readings of day D+1.
+const ACT_ALIASES={
+  date:['date','day','activity date','data','giorno','data attività','datetime','date time','timestamp'],
+  min:['minutes','minutes of activity','minute','min','mins','duration','duration (min)','duration (minutes)','time (min)','active minutes','minuti','durata','durata (min)'],
+  type:['type','type of activity','activity type','activity','sport','kind','tipo','tipo attività','attività','attivita']
+};
+// "45", "45 min", "1h 30m", "1:30" (hours:minutes), "00:45:12" (h:m:s) -> minutes
+function parseMinutes(v){
+  v=String(v||'').trim().toLowerCase().replace(',','.'); if(!v) return null;
+  let m=/^(\d+):(\d{1,2})(?::(\d{1,2}))?$/.exec(v); if(m) return Math.round(+m[1]*60+ +m[2]+(m[3]?+m[3]/60:0));
+  m=/^(?:(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours|ora|ore))?\s*(?:(\d+(?:\.\d+)?)\s*(?:m|min|mins|minute|minutes|minuti)?)?$/.exec(v);
+  if(m&&(m[1]||m[2])) return Math.round((+m[1]||0)*60+(+m[2]||0));
+  m=/^(\d+(?:\.\d+)?)/.exec(v); return m?Math.round(+m[1]):null;
+}
+function parseActivityFile(text){
+  const rows=parseCSV(text); if(!rows.length) throw new Error('The file is empty.');
+  const head=rows[0].map(h=>h.trim().toLowerCase().replace(/\s+/g,' '));
+  const idx={}; Object.entries(ACT_ALIASES).forEach(([k,al])=>{ const i=head.findIndex((h,j)=>al.includes(h)&&!Object.values(idx).includes(j)); if(i>=0) idx[k]=i; });
+  let body=rows.slice(1);
+  if(idx.date==null){
+    if(parseDateStr(rows[0][0])&&rows[0].length>=2){ idx.date=0; idx.min=1; idx.type=2; body=rows; }   // no header: date, minutes, type
+    else throw new Error('No date column found. Use the columns date, minutes, type.');
+  } else if(idx.min==null&&idx.type==null&&rows[0].length>=3){ idx.min=1; idx.type=2; }
+  const days=new Map(), bad=[]; let rows0=0, rest=0;
+  body.forEach((row,i)=>{
+    const g=k=>idx[k]!=null?String(row[idx[k]]??'').trim():'';
+    const dt=parseDateStr(g('date')); if(!dt){ bad.push(i+(body===rows?1:2)); return; }
+    const min=parseMinutes(g('min')), type=g('type');
+    if(min!=null&&min<=0){ rest++; return; }          // 0 minutes = no activity that day
+    if(min==null&&!type){ bad.push(i+(body===rows?1:2)); return; }
+    const d=dt.slice(0,10), e=days.get(d)||{min:0, anyMin:false, types:[]};
+    if(min!=null){ e.min+=min; e.anyMin=true; }
+    if(type&&!e.types.some(t=>t.toLowerCase()===type.toLowerCase())) e.types.push(type);
+    days.set(d,e); rows0++;
+  });
+  return {days, bad, rows:rows0, rest};
+}
+// Returns updated copies of the readings plus counts; nothing is changed until the caller saves them.
+function enrichWithActivities(acts, mode){
+  const ds=[...acts.keys()].sort(), lo=addDays(ds[0],1), hi=addDays(ds[ds.length-1],1);
+  let changed=0; const hitDays=new Set(), readingDays=new Set(state.readings.map(r=>r.dt.slice(0,10)));
+  const list=state.readings.map(r=>{
+    const day=r.dt.slice(0,10), a=acts.get(addDays(day,-1)), n=Object.assign({},r);
+    if(a){
+      hitDays.add(addDays(day,-1)); n.actPrev=true;
+      const note=a.types.join(' + '), min=a.anyMin?a.min:null;
+      if(mode==='replace'||!r.actPrev||!r.actPrevNote) n.actPrevNote=note||r.actPrevNote||'';
+      if(mode==='replace'||r.actPrevMin==null) n.actPrevMin=min!=null?min:(mode==='replace'?null:r.actPrevMin);
+    } else if(mode==='replace'&&day>=lo&&day<=hi){ n.actPrev=false; n.actPrevNote=''; n.actPrevMin=null; }
+    if(JSON.stringify(n)!==JSON.stringify(r)) changed++;
+    return n;
+  });
+  const noNext=ds.filter(d=>!readingDays.has(addDays(d,1))).length;
+  return {list, changed, hitDays:hitDays.size, noNext, from:ds[0], to:ds[ds.length-1]};
+}
+$('#actFileInput').addEventListener('change', async e=>{
+  const file=e.target.files[0]; if(!file) return; const errEl=$('#actErr'); errEl.textContent='';
+  try{
+    if(!state.readings.length) throw new Error('Add or import blood pressure readings first; activities are attached to them.');
+    const P=parseActivityFile(await file.text());
+    if(!P.days.size) throw new Error('No activities found in the file. Check that it has the columns date, minutes, type.');
+    const mode=(document.querySelector('input[name=actMode]:checked')||{}).value==='replace'?'replace':'add';
+    const E=enrichWithActivities(P.days, mode);
+    const msg=`The file has ${P.days.size} activity day${P.days.size===1?'':'s'} from ${fmtDay(E.from)} to ${fmtDay(E.to)}${P.bad.length?`; ${P.bad.length} row${P.bad.length===1?' was':'s were'} unreadable (${P.bad.slice(0,5).join(', ')}${P.bad.length>5?'…':''})`:''}. `+
+      `${E.hitDays} of them have readings on the following day and will be recorded there as physical activity yesterday${E.noNext?`; ${E.noNext} ${E.noNext===1?'has':'have'} no readings the next day, so there is nothing to attach ${E.noNext===1?'it':'them'} to`:''}. `+
+      (mode==='replace'?'Within these dates, readings after a day not in the file will be marked as after a rest day. ':'')+
+      `${E.changed} reading${E.changed===1?'':'s'} will change. You may want to export a backup first.`;
+    if(!E.changed){ errEl.textContent=msg.replace(/ You may want.*$/,'')+' Nothing to update.'; return; }
+    const ok=await ask('Add activity history', msg, [{k:'no',t:'Cancel'},{k:'yes',t:`Update ${E.changed} reading${E.changed===1?'':'s'}`,p:true}]);
+    if(ok!=='yes') return;
+    state.readings=E.list; sortReadings(); persist(); closeModal('importModal'); render();
+    toast(`Activity added to ${E.changed} reading${E.changed===1?'':'s'} on ${E.hitDays} day${E.hitDays===1?'':'s'}.`);
+  }catch(err){ errEl.textContent=err.message||'Could not read this file.'; }
+  finally{ e.target.value=''; }
+});
+$('#actTemplateBtn').onclick=()=>offer('activity-template.csv','date,minutes,type\n2026-09-28,40,Brisk walk\n2026-09-29,1:15,Cycling\n2026-09-29,20,Stretching\n');
 $('#exportCsv').onclick=()=>{ if(!state.readings.length) return toast('No readings to export yet.'); offer(`blood-pressure-${today()}.csv`, toCSV(state.readings)); };
 $('#exportJson').onclick=()=>{ if(!state.readings.length) return toast('No readings to export yet.'); offer(`blood-pressure-backup-${today()}.json`, JSON.stringify({app:'bp-log',version:1,exported:new Date().toISOString(),readings:state.readings},null,1)); };
 $('#wipeBtn').onclick=async()=>{
@@ -1679,6 +1784,8 @@ function buildPdf(all, list, o){
     para(`${AD.size} of ${dl.length} days with readings followed a day with physical activity. Readings are grouped by whether the previous day was active; days without the mark count as rest days.`);
     table(gHead('Reading taken'), gRows(activityGroups(L)), gFr, gAl);
     const an=activityNote(L); if(an) para(an,8.8,MUTED);
+    const DG=durationGroups(L);
+    if(DG.length){ h3("Morning readings by the previous day's activity duration"); table(gHead('Morning readings'), gRows(DG), gFr, gAl); }
 
     sec('Devices, measurement method and agreement');
     const dev=new Map(); L.forEach(r=>{ const kk=r.device||'Not specified'; if(!dev.has(kk)) dev.set(kk,[]); dev.get(kk).push(r); });
