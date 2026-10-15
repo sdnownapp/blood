@@ -238,9 +238,14 @@ legend{padding:0 6px;font-weight:600;font-size:.9rem}
       <label>Patient name<input type="text" id="r_name" autocomplete="name"></label>
       <label>Date of birth<input type="date" id="r_dob"></label>
     </div>
-    <p class="small muted" style="margin:14px 0 10px">The report has two sections: statistics on all your data, then statistics and every reading for the period you choose below.</p>
+    <p class="small muted" style="margin:14px 0 10px">The report has two sections: statistics on all your data, and statistics plus every reading for the period you choose below.</p>
     <fieldset>
-      <legend>Period for section 2</legend>
+      <legend>Section order</legend>
+      <label class="radio"><input type="radio" name="r_order" value="all"><span>All data first<small>Section 1: all data. Section 2: the selected period, with every reading.</small></span></label>
+      <label class="radio"><input type="radio" name="r_order" value="period"><span>Selected period first<small>Section 1: the selected period, with every reading. Section 2: all data.</small></span></label>
+    </fieldset>
+    <fieldset>
+      <legend>Selected period</legend>
       <div class="custom" style="flex-wrap:wrap">
         <input type="date" id="r_from" aria-label="From"> <span class="muted">to</span> <input type="date" id="r_to" aria-label="To">
       </div>
@@ -1143,6 +1148,8 @@ function openReport(){
   const last=state.readings[state.readings.length-1].dt.slice(0,10);
   if(!$('#r_to').value) $('#r_to').value=last;
   if(!$('#r_from').value){ const d=dayDate($('#r_to').value); d.setDate(d.getDate()-29); $('#r_from').value=toDT(d).slice(0,10); }
+  const ord=state.settings.reportOrder==='period'?'period':'all';
+  document.querySelectorAll('input[name="r_order"]').forEach(i=>i.checked=i.value===ord);
   periodInfo(); openModal('reportModal');
 }
 function periodInfo(){
@@ -1155,14 +1162,15 @@ $('#makeReport').onclick=async()=>{
   const err=m=>$('#reportErr').textContent=m;
   if(!window.jspdf||!window.jspdf.jsPDF) return err('The PDF tool did not load. Check your connection and reload the page.');
   const from=$('#r_from').value, to=$('#r_to').value;
-  if(!from||!to) return err('Choose the start and end date for section 2.');
+  if(!from||!to) return err('Choose the start and end date for the selected period.');
   if(from>to) return err('The start date is after the end date.');
   const period=state.readings.filter(r=>inB(r,[from,to]));
   if(!period.length) return err('There are no readings in that period. Choose other dates.');
-  state.settings.patient=$('#r_name').value.trim(); state.settings.dob=$('#r_dob').value; saveSettings();
+  const order=(document.querySelector('input[name="r_order"]:checked')||{}).value==='period'?'period':'all';
+  state.settings.patient=$('#r_name').value.trim(); state.settings.dob=$('#r_dob').value; state.settings.reportOrder=order; saveSettings();
   const btn=$('#makeReport'); btn.disabled=true; btn.textContent='Creating…';
   try{
-    const blob=buildPdf(state.readings.slice(), period, {patient:state.settings.patient,dob:state.settings.dob,from,to,notes:$('#r_notes').value.trim()});
+    const blob=buildPdf(state.readings.slice(), period, {patient:state.settings.patient,dob:state.settings.dob,from,to,notes:$('#r_notes').value.trim(),order});
     const saved=await offer(`blood-pressure-report-${today()}.pdf`, blob);
     if(saved){ closeModal('reportModal'); toast('Report downloaded.'); }
   }catch(e){ err('Could not create the PDF: '+(e.message||e)); }
@@ -1200,6 +1208,7 @@ function buildPdf(all, list, o){
 
   const partTitle=(t,sub)=>{ ensure(30); y+=4; doc.setFillColor(31,78,140); doc.rect(M,y-5.5,2.2,sub?13:7.5,'F'); font('bold',15); doc.text(t,M+5,y); if(sub){ y+=6; font('normal',9.5,MUTED); doc.text(sub,M+5,y); } y+=6; };
   const range=l=>`${numDate(l[0].dt)} to ${numDate(l[l.length-1].dt)}`;
+  const periodFirst=o.order==='period', allNo=periodFirst?2:1, perNo=periodFirst?1:2;
   const pdfColors={sys:'#B8324B',dia:'#2B7A8B',hr:'#A0701A',grid:'#DCE2EA',text:'#5A6678'};
 
   function statsBlock(L, P, scope){
@@ -1212,7 +1221,7 @@ function buildPdf(all, list, o){
     if(o.compare && o.compare!==L){
       const A=summarize(o.compare), ds=S.sys.mean-A.sys.mean, dd=S.dia.mean-A.dia.mean, dh=S.hr.mean-A.hr.mean;
       const sg=v=>(Math.round(v)>0?'+':'')+Math.round(v);
-      para(`Compared with all data (section 1): systolic ${sg(ds)} mmHg, diastolic ${sg(dd)} mmHg${A.hr.n&&S.hr.n?`, pulse ${sg(dh)} bpm`:''}; systolic at or above 135: ${pctOf(S.hiS,S.n)} vs ${pctOf(A.hiS,A.n)}; diastolic at or above 85: ${pctOf(S.hiD,S.n)} vs ${pctOf(A.hiD,A.n)}.`,9);
+      para(`Compared with all data (section ${allNo}): systolic ${sg(ds)} mmHg, diastolic ${sg(dd)} mmHg${A.hr.n&&S.hr.n?`, pulse ${sg(dh)} bpm`:''}; systolic at or above 135: ${pctOf(S.hiS,S.n)} vs ${pctOf(A.hiS,A.n)}; diastolic at or above 85: ${pctOf(S.hiD,S.n)} vs ${pctOf(A.hiD,A.n)}.`,9);
     }
 
     h2(`${P}.2 Progression`);
@@ -1274,33 +1283,41 @@ function buildPdf(all, list, o){
   font('bold',18); doc.text('Home blood pressure report',M,y); y+=7;
   font('normal',9.5,MUTED); doc.text('Patient-recorded home measurements',M,y); y+=8;
   const info=[['Patient',o.patient||'Not given'],['Date of birth',o.dob?numDate(o.dob):'Not given'],['Report created',numDate(today())],
-    ['Section 1',`All data: ${range(all)}, ${all.length} readings`],
-    ['Section 2',`Selected period: ${numDate(o.from)} to ${numDate(o.to)}, ${list.length} readings, with every reading listed`]];
+    ...[[`Section ${allNo}`,`All data: ${range(all)}, ${all.length} readings`],
+    [`Section ${perNo}`,`Selected period: ${numDate(o.from)} to ${numDate(o.to)}, ${list.length} readings, with every reading listed`]].sort((a,b)=>a[0]<b[0]?-1:1)];
   info.forEach(([k,v])=>{ font('bold',9.5); doc.text(k,M,y); font('normal',9.5); const ls=doc.splitTextToSize(String(v),CW-34); doc.text(ls,M+34,y); y+=5.2*ls.length; });
   y+=1;
   para('Reference: 135/85 mmHg is the home blood pressure threshold used in the European Society of Hypertension guidelines. A reading entered as the average of several measurements taken in a row counts as one reading. SD = standard deviation. The SYS >= 135 and DIA >= 85 columns give the share of readings with systolic at or above 135 and with diastolic at or above 85; a reading can count in both.',8.5,MUTED);
   if(o.notes){ h2('Notes from the patient'); para(o.notes); }
 
-  // Section 1
-  y+=2; partTitle('Section 1. All data', `${range(all)} · ${all.length} readings on ${days(all).length} days`);
-  statsBlock(all,'1','the data');
-
-  // Section 2
-  doc.addPage(); y=18;
-  partTitle('Section 2. Selected period', `${numDate(o.from)} to ${numDate(o.to)} · ${list.length} readings on ${days(list).length} days`);
-  o.compare=all;
-  statsBlock(list,'2','this period');
-
-  h2(`2.9 All readings in the period (${list.length})`);
-  table(['Date','Time','SYS','DIA','Pulse','Type','Device','Kg','Medicine','Activity'],
-    list.map(r=>({cells:[numDate(r.dt),r.dt.slice(11,16),r.sys,r.dia,r.hr??'–',countLabel(r,true),r.device||'–',r.weight!=null?r1(r.weight):'–',r.med?(r.medicine||'Yes'):'–',actLabel(r)], hi:[0,0,r.sys>=135,r.dia>=85]})),
-    [.12,.07,.06,.06,.07,.08,.17,.07,.18,.12],['l','l','r','r','r','l','l','r','l','l']);
-  para('Values at or above 135 systolic or 85 diastolic are shown in red.',8.3,MUTED);
-  const withNotes=list.filter(r=>r.notes);
-  if(withNotes.length){
-    h2('2.10 Notes recorded with readings');
-    table(['Date','Time','Reading','Note'], withNotes.map(r=>({cells:[numDate(r.dt),r.dt.slice(11,16),`${r.sys}/${r.dia}`,r.notes]})),[.14,.09,.12,.65],['l','l','r','l']);
+  function allSection(){
+    partTitle(`Section ${allNo}. All data`, `${range(all)} · ${all.length} readings on ${days(all).length} days`);
+    o.compare=null;
+    statsBlock(all,String(allNo),'the data');
   }
+  function periodSection(){
+    const P=perNo;
+    partTitle(`Section ${P}. Selected period`, `${numDate(o.from)} to ${numDate(o.to)} · ${list.length} readings on ${days(list).length} days`);
+    o.compare=all;
+    statsBlock(list,String(P),'this period');
+
+    h2(`${P}.9 All readings in the period (${list.length})`);
+    table(['Date','Time','SYS','DIA','Pulse','Type','Device','Kg','Medicine','Activity'],
+      list.map(r=>({cells:[numDate(r.dt),r.dt.slice(11,16),r.sys,r.dia,r.hr??'–',countLabel(r,true),r.device||'–',r.weight!=null?r1(r.weight):'–',r.med?(r.medicine||'Yes'):'–',actLabel(r)], hi:[0,0,r.sys>=135,r.dia>=85]})),
+      [.12,.07,.06,.06,.07,.08,.17,.07,.18,.12],['l','l','r','r','r','l','l','r','l','l']);
+    para('Values at or above 135 systolic or 85 diastolic are shown in red.',8.3,MUTED);
+    const withNotes=list.filter(r=>r.notes);
+    if(withNotes.length){
+      h2(`${P}.10 Notes recorded with readings`);
+      table(['Date','Time','Reading','Note'], withNotes.map(r=>({cells:[numDate(r.dt),r.dt.slice(11,16),`${r.sys}/${r.dia}`,r.notes]})),[.14,.09,.12,.65],['l','l','r','l']);
+    }
+  }
+
+  // Sections, in the order chosen when launching the report
+  const sections=periodFirst?[periodSection,allSection]:[allSection,periodSection];
+  y+=2; sections[0]();
+  doc.addPage(); y=18; sections[1]();
+
   const n=doc.getNumberOfPages();
   for(let i=1;i<=n;i++){ doc.setPage(i); font('normal',7.8,MUTED); doc.text(`Home blood pressure report${o.patient?' – '+o.patient:''}`,M,290); doc.text(`Page ${i} of ${n}`,PW-M,290,{align:'right'}); }
   return doc.output('blob');
