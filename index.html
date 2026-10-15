@@ -180,7 +180,7 @@ legend{padding:0 6px;font-weight:600;font-size:.9rem}
     </div>
   </div>
   <main id="main"></main>
-  <p class="small muted" style="margin-top:48px;text-align:center">Blood pressure log · version 15 Oct 2026 (9)</p>
+  <p class="small muted" style="margin-top:48px;text-align:center">Blood pressure log · version 15 Oct 2026 (10)</p>
 </div>
 
 <!-- Reading form -->
@@ -1620,14 +1620,30 @@ function buildPdf(all, list, o){
   const INK=[22,35,58], MUTED=[95,105,120], LINE=[210,216,224];
   let y=18;
   const ensure=h=>{ if(y+h>BOTTOM){ doc.addPage(); y=18; } };
+  // Keep-with-next: titles (and the short intro paragraphs right after them) are not drawn at once but queued.
+  // The next block of real content draws the queue only after making sure the titles AND the start of that
+  // content fit on the page; otherwise everything moves to a new page together. Long content can still
+  // continue over several pages; only the title can never be left alone at the bottom of a page.
+  let pending=[];
+  const pendH=()=>pending.reduce((a,p)=>a+p.h,0);
+  const flush=need=>{ ensure(pendH()+need); const q=pending; pending=[]; q.forEach(p=>p.draw()); };
+  const keep=(h,draw,kind)=>{
+    if(kind==='head'&&pending.some(p=>p.kind==='body')) flush(0);   // a new title closes the previous chain
+    pending.push({h,draw,kind});
+  };
   const font=(w,s,c)=>{ doc.setFont('helvetica',w); doc.setFontSize(s); doc.setTextColor(...(c||INK)); };
-  const h2=t=>{ ensure(20); y+=5; font('bold',12.5); doc.text(t,M,y); y+=2.2; doc.setDrawColor(...LINE); doc.setLineWidth(.3); doc.line(M,y,PW-M,y); y+=5.5; };
-  const para=(t,s=9.5,c)=>{ font('normal',s,c); const ls=doc.splitTextToSize(t,CW); ensure(ls.length*4.4); doc.text(ls,M,y); y+=ls.length*4.4+1; };
+  const h2=t=>keep(12.7,()=>{ y+=5; font('bold',12.5); doc.text(t,M,y); y+=2.2; doc.setDrawColor(...LINE); doc.setLineWidth(.3); doc.line(M,y,PW-M,y); y+=5.5; },'head');
+  const para=(t,s=9.5,c)=>{
+    font('normal',s,c); const ls=doc.splitTextToSize(t,CW), h=ls.length*4.4+1;
+    const draw=()=>{ font('normal',s,c); doc.text(ls,M,y); y+=h; };
+    // a short paragraph straight after a title travels with the title and with what follows it
+    if(pending.length&&ls.length<=5&&pendH()+h<60) keep(h,draw,'body'); else { flush(h); draw(); }
+  };
   const table=(heads, rows, fr, al)=>{
     const ws=fr.map(f=>f*CW), rh=6.4;
-    const head=()=>{ ensure(rh*2); doc.setFillColor(238,242,246); doc.rect(M,y,CW,rh,'F'); font('bold',8.3,MUTED); let x=M; heads.forEach((h,i)=>{ txt(h,x,ws[i],al[i]); x+=ws[i]; }); y+=rh; };
+    const head=()=>{ ensure(rh*2); font('bold',8.3,MUTED); doc.setFillColor(238,242,246); doc.rect(M,y,CW,rh,'F'); font('bold',8.3,MUTED); let x=M; heads.forEach((h,i)=>{ txt(h,x,ws[i],al[i]); x+=ws[i]; }); y+=rh; };
     const txt=(s,x,w,a)=>{ s=String(s); while(s.length>1&&doc.getTextWidth(s)>w-3) s=s.slice(0,-2)+'…'; const ty=y+rh/2+1.1; if(a==='r') doc.text(s,x+w-1.5,ty,{align:'right'}); else doc.text(s,x+1.5,ty); };
-    ensure(rh*(Math.min(rows.length,6)+1)+2);   // keep short tables together
+    flush(rh*(Math.min(rows.length,6)+1)+2);   // titles stay with the header and first rows; short tables stay whole
     head();
     rows.forEach(r=>{
       if(y+rh>BOTTOM){ doc.addPage(); y=18; head(); }
@@ -1643,7 +1659,7 @@ function buildPdf(all, list, o){
   const gHead=first=>[first,'Readings','Mean BP (mmHg)','SD','Pulse','SYS >= 135','DIA >= 85'];
   const gFr=[.31,.11,.16,.12,.08,.11,.11], gAl=['l','r','r','r','r','r','r'];
 
-  const partTitle=(t,sub)=>{ ensure(30); y+=4; doc.setFillColor(31,78,140); doc.rect(M,y-5.5,2.2,sub?13:7.5,'F'); font('bold',15); doc.text(t,M+5,y); if(sub){ y+=6; font('normal',9.5,MUTED); doc.text(sub,M+5,y); } y+=6; };
+  const partTitle=(t,sub)=>keep(sub?16:10,()=>{ y+=4; doc.setFillColor(31,78,140); doc.rect(M,y-5.5,2.2,sub?13:7.5,'F'); font('bold',15); doc.text(t,M+5,y); if(sub){ y+=6; font('normal',9.5,MUTED); doc.text(sub,M+5,y); } y+=6; },'head');
   const range=l=>`${numDate(l[0].dt)} to ${numDate(l[l.length-1].dt)}`;
   const periodFirst=o.order==='period', allNo=periodFirst?2:1, perNo=periodFirst?1:2;
   const pdfColors={sys:'#B8324B',dia:'#2B7A8B',hr:'#A0701A',pp:'#1F4E8C',grid:'#DCE2EA',text:'#5A6678'};
@@ -1652,12 +1668,12 @@ function buildPdf(all, list, o){
     const cv=document.createElement('canvas'), cw=1700, ch=Math.round(cw*(ratio||0.3)); cv.width=cw; cv.height=ch;
     const cctx=cv.getContext('2d'); cctx.scale(2,2);
     drawLines(cctx,cw/2,ch/2,lines(pdfColors),Object.assign({colors:pdfColors,fill:'#FFFFFF',font:'13px Helvetica, Arial, sans-serif'},opts));
-    const ih=CW*ch/cw; ensure(ih+14);
+    const ih=CW*ch/cw; flush(ih+14);
     font('bold',10); doc.text(title,M,y); y+=3;
     doc.addImage(cv.toDataURL('image/jpeg',0.92),'JPEG',M,y,CW,ih,undefined,'FAST'); y+=ih+4;
   };
-  const h3=t=>{ ensure(16); y+=1; font('bold',10); doc.text(t,M,y); y+=4.5; };
-  const legend=(items,extra)=>{ let lx=M; font('normal',8.3,MUTED);
+  const h3=t=>keep(5.5,()=>{ y+=1; font('bold',10); doc.text(t,M,y); y+=4.5; },'head');
+  const legend=(items,extra)=>{ flush(6); let lx=M; font('normal',8.3,MUTED);
     items.forEach(([t,c,thin])=>{ doc.setFillColor(...c); doc.rect(lx,y-(thin?1.2:1.6),5,thin?.7:1.4,'F'); doc.text(t,lx+6.5,y); lx+=doc.getTextWidth(t)+14; });
     if(extra) doc.text(extra,lx,y); y+=6; };
   const dlAll=days(all);
@@ -1705,7 +1721,7 @@ function buildPdf(all, list, o){
       const cv=document.createElement('canvas'); const cw=1700, ch=520; cv.width=cw; cv.height=ch;
       const cctx=cv.getContext('2d'); cctx.scale(2,2);
       drawChart(cctx,cw/2,ch/2,pts,{colors:pdfColors,showHR:true,fill:'#FFFFFF',font:'13px Helvetica, Arial, sans-serif',dom:pdom});
-      const ih=CW*ch/cw; ensure(ih+14);
+      const ih=CW*ch/cw; flush(ih+14);
       font('bold',10); doc.text(title,M,y); y+=3;
       doc.addImage(cv.toDataURL('image/jpeg',0.92),'JPEG',M,y,CW,ih,undefined,'FAST'); y+=ih+4;
     };
@@ -1840,7 +1856,8 @@ function buildPdf(all, list, o){
   // Sections, in the order chosen when launching the report
   const sections=periodFirst?[periodSection,allSection]:[allSection,periodSection];
   y+=2; sections[0]();
-  doc.addPage(); y=18; sections[1]();
+  flush(0); doc.addPage(); y=18; sections[1]();
+  flush(0);
 
   const n=doc.getNumberOfPages();
   for(let i=1;i<=n;i++){ doc.setPage(i); font('normal',7.8,MUTED); doc.text(`Home blood pressure report${o.patient?' – '+o.patient:''}`,M,290); doc.text(`Page ${i} of ${n}`,PW-M,290,{align:'right'}); }
